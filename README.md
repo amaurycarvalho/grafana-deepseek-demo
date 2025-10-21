@@ -1,14 +1,11 @@
 # 🚀 Grafana OSS vs Deepseek Demo
----
 
 This MVP project demonstrates the integration of *Deepseek LLM (via Ollama)* with *Grafana OSS*, providing basic autocompletion capabilities. It also enables *Deepseek* integration with *VSCode*, offering partial support for the *Model Context Protocol* (MCP).
 
 > ⚠️ **Warning**: This is a prototype (MVP) project intended for testing only.
 > Do not deploy it to production environments — it lacks security hardening and validation mechanisms.
 
----
 ## 📖 User's Guide
----
 
 ### Introduction
 
@@ -110,9 +107,7 @@ Inside VSCode, try prompts like:
 - “Show the CPU metrics.”
 
 
----
 ## 🧑‍💻 Developer Guide
----
 
 ### 🧩 Stack Overview:
 
