@@ -1,0 +1,21 @@
+First, study the Grafana MCP server telemetry methods below, choosing the right one from the list that can provide more data for what the user prompt requires.
+
+[
+{ method:"get_dashboard_property", params: { uid: "all", }, description: "return all dashboards meta data" }, 
+{ method:"list_prometheus_metric_metadata", params: { datasourceUid: "Prometheus", "metric": "*", }, description: "return all metrics meta data" },
+{ method:"list_prometheus_metric_names", params: { datasourceUid: "Prometheus", }, description: "return all metrics names" },
+{ method:"get_dashboard_summary", params: { uid: "dashboard_uid", }, description: "return the specified dashboard description" },
+{ method:"list_prometheus_metric_metadata", params: { datasourceUid: "Prometheus", metric: "metric_uid", }, description: "return the specified metric description" },
+{ method:"list_datasources", params: {}, description: "return all datasource names" },
+{ method:"tools/list", params: {}, description: "return all valid MCP server methods" },
+]
+
+Then, respond strictly with the JSON structure below if you found a method from the previous list that matchs the user requirements, filling it with the proper MCP method name and required params (dont put anything more than it in this JSON):
+
+{"action": "mcp", "method": "...", "params": { ... } }
+
+Otherwise, if no MCP method matchs the user requirement, use only in this case the JSON structure below, filling it with your natural language answer:
+
+{"action": "respond", "text": "your natural language answer"}
+
+Don't mix up the two JSON structures in a same response.

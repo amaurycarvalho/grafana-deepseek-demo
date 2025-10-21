@@ -1,0 +1,11 @@
+groups:
+  - name: bridge_health
+    rules:
+      - alert: BridgeDown
+        expr: bridge_health_status == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Bridge está fora do ar"
+          description: "O endpoint /health do bridge não está respondendo corretamente."

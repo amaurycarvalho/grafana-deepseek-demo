@@ -1,0 +1,149 @@
+version: "3.9"
+
+services:
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    depends_on:
+      - blackbox-exporter
+      - node-exporter
+
+  blackbox-exporter:
+    image: prom/blackbox-exporter
+    ports:
+      - "9115:9115"
+
+  node-exporter:
+    image: prom/node-exporter:latest
+    container_name: node-exporter
+    pid: "host"
+    restart: unless-stopped
+    ports:
+      - "9100:9100"
+    command:
+      - --path.procfs=/host/proc
+      - --path.sysfs=/host/sys
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+
+  mcp-grafana:
+    image: mcp/grafana:latest
+    container_name: mcp-grafana
+    command: ["-t", "streamable-http"]
+    environment:
+      - GRAFANA_URL=${GRAFANA_URL}
+    #  - GRAFANA_SERVICE_ACCOUNT_TOKEN=${GRAFANA_API_KEY}
+    ports:
+      - "8765:8000"
+    depends_on:
+      - grafana
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    restart: unless-stopped
+    command: serve
+
+  ollama-init:
+    image: ollama/ollama:latest
+    container_name: ollama-init
+    depends_on:
+      - ollama
+    environment:
+      - LLM_MODEL=${LLM_MODEL}
+    entrypoint: ["/bin/sh", "-c"]
+    command: >
+      "sleep 5 &&
+       ollama pull ${LLM_MODEL} || true &&
+       exit 0"
+    volumes:
+      - ollama_data:/root/.ollama
+
+  loki:
+    image: grafana/loki:latest
+    container_name: loki
+    restart: unless-stopped
+    ports:
+      - "3100:3100"
+    command: -config.file=/etc/loki/loki-config.yaml
+    volumes:
+      - ./loki/loki-config.yaml:/etc/loki/loki-config.yaml:ro
+      - loki_data:/loki
+
+  pyroscope:
+    image: grafana/pyroscope:latest
+    ports:
+      - "4040:4040"
+    environment:
+      - PYROSCOPE_STORAGE_PATH=/var/lib/pyroscope
+    volumes:
+      - pyroscope_data:/var/lib/pyroscope
+
+  tempo:
+    image: grafana/tempo:latest
+    container_name: tempo
+    ports:
+      - "3200:3200"
+      - "4317:4317" # OTLP gRPC receiver
+      - "4318:4318" # OTLP HTTP receiver
+    command: ["-config.file=/etc/tempo/tempo-config.yaml"]
+    volumes:
+      - ./tempo/tempo-config.yaml:/etc/tempo/tempo-config.yaml
+      - tempo_data:/tmp/tempo
+
+  bridge:
+    build: ./bridge
+    container_name: mcp-bridge
+    environment:
+      - OLLAMA_HOST=${OLLAMA_HOST}
+      - LLM_MODEL=${LLM_MODEL}
+      - MCP_URL=${MCP_URL}
+      - LLM_MODE=${LLM_MODE}
+      - LOKI_URL=${LOKI_URL}
+      - PYROSCOPE_URL=${PYROSCOPE_URL}
+      - PYROSCOPE_AUTH_TOKEN=${PYROSCOPE_AUTH_TOKEN}
+      - TEMPO_URL=${TEMPO_URL}
+      - SYSTEM_PROMPT_MDC=./system-prompt.mdc
+    ports:
+      - "3001:3001"
+    depends_on:
+      - ollama
+      - mcp-grafana
+      - loki
+      - tempo
+      - pyroscope
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana-oss:latest
+    container_name: grafana
+    user: "472"
+    environment:
+      - GF_INSTALL_PLUGINS=grafana-llm-app
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./grafana/grafana.ini:/etc/grafana/grafana.ini
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - prometheus
+      - loki
+      - pyroscope
+      - tempo
+
+volumes:
+  ollama_data:
+  loki_data:
+  tempo_data:
+  pyroscope_data:

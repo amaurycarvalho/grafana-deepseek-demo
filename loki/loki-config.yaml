@@ -1,0 +1,71 @@
+auth_enabled: false
+
+server:
+  http_listen_port: 3100
+
+# ---------------------------------
+# INGESTER
+# ---------------------------------
+ingester:
+  lifecycler:
+    ring:
+      kvstore:
+        store: inmemory
+      replication_factor: 1
+  chunk_idle_period: 5m
+  max_chunk_age: 1h
+  chunk_target_size: 1048576
+  wal:
+    dir: /loki/wal
+
+# ---------------------------------
+# SCHEMA CONFIG
+# ---------------------------------
+schema_config:
+  configs:
+    - from: 2025-10-01
+      store: boltdb-shipper
+      object_store: filesystem
+      schema: v13
+      index:
+        prefix: index_
+        period: 24h
+
+# ---------------------------------
+# STORAGE CONFIG
+# ---------------------------------
+storage_config:
+  boltdb_shipper:
+    active_index_directory: /loki/index
+    cache_location: /loki/cache
+  filesystem:
+    directory: /loki/chunks
+
+# ---------------------------------
+# LIMITS
+# ---------------------------------
+limits_config:
+  max_streams_per_user: 0
+  max_chunks_per_query: 0
+  max_entries_limit_per_query: 0
+  reject_old_samples: true
+  reject_old_samples_max_age: 168h
+  allow_structured_metadata: false
+
+# ---------------------------------
+# CHUNK STORE
+# ---------------------------------
+chunk_store_config:
+
+# ---------------------------------
+# TABLE MANAGER
+# ---------------------------------
+table_manager:
+  retention_deletes_enabled: false
+  retention_period: 0s
+
+# ---------------------------------
+# COMPACTOR
+# ---------------------------------
+compactor:
+  working_directory: /loki/compactor
