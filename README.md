@@ -102,10 +102,15 @@ You can easily run this setup locally with Docker and adapt it to your own envir
 
 Inside VSCode, try prompts like:
 
+- "Hello!"
+- "What do you know about Node.js?"
+
+And, still experimentally:
+
+- “#mcp:grafana:tools”
 - “#mcp:grafana Show all dashboards names.”
 - “#mcp:grafana Show all metrics names.”
 - “#mcp:grafana Show the CPU metrics.”
-- “#mcp:grafana:tools”
 
 
 ## 🧑‍💻 Developer Guide
