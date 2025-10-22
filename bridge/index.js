@@ -4,9 +4,9 @@ import fs from "fs";
 import fetch from "node-fetch";
 import client from "prom-client";
 import Pyroscope from "@pyroscope/nodejs";
-import winston from "winston";
-import LokiTransport from "winston-loki";
 import { Ollama } from "ollama";
+import { tempo } from "./tempo.js";
+import logger from "./logger.js";
 
 /***
  * Main configuration
@@ -17,7 +17,6 @@ app.use(express.json());
 const OLLAMA_HOST = process.env.OLLAMA_HOST || "http://ollama:11434";
 const LLM_MODEL = process.env.LLM_MODEL || "deepseek-r1:1.5b";
 const MCP_URL = process.env.MCP_URL || "http://mcp-grafana:8000";
-const LOKI_URL = process.env.LOKI_URL || "http://loki:3100";
 const PYROSCOPE_URL = process.env.PYROSCOPE_URL || "http://pyroscope:4040";
 const PYROSCOPE_AUTH_TOKEN = process.env.PYROSCOPE_AUTH_TOKEN || "";
 const BRIDGE_MODE = process.env.BRIDGE_MODE || "LLM"; // LLM or TEST
@@ -112,19 +111,12 @@ function pyroscopeSetLabelsMiddleware(labels) {
 }
 
 /***
- * Loki setup
+ * Tempo setup
  */
 
-const logger = winston.createLogger({
-  transports: [
-    new LokiTransport({
-      host: LOKI_URL,
-      labels: { app: "mcp-bridge", env: process.env.NODE_ENV || "dev" },
-      json: true,
-      replaceTimestamp: true,
-      interval: 5, // segundos entre flushes
-    }),
-  ],
+await tempo.init({
+  serviceName: "mcp-bridge",
+  tempoUrl: "http://tempo:4318/v1/traces",
 });
 
 /***
@@ -145,44 +137,41 @@ const SYSTEM_PROMPT = loadSystemPrompt();
  * @returns MCP response
  */
 async function callMCP(method, params) {
-  //return Pyroscope.wrapWithLabels(
-  //  { function: "callMCP", app: "bridge" },
-  //  async () => {
-  const timerEnd = mcpLatency.startTimer();
-  mcpRequests.inc();
-  try {
-    const url = `${MCP_URL}/mcp`;
+  return await tempo.withSpan("call_mcp", { method: method }, async () => {
+    const timerEnd = mcpLatency.startTimer();
+    mcpRequests.inc();
+    try {
+      const url = `${MCP_URL}/mcp`;
 
-    const payload = {
-      jsonrpc: "2.0",
-      id: "1",
-      method,
-      params,
-    };
+      const payload = {
+        jsonrpc: "2.0",
+        id: "1",
+        method,
+        params,
+      };
 
-    // POST to MCP Server
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
+      // POST to MCP Server
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
 
-    if (!res.ok) {
-      const text = await res.text();
-      throw new Error(`MCP server error: ${text}`);
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`MCP server error: ${text}`);
+      }
+
+      const data = await res.json();
+
+      return data;
+    } catch (err) {
+      mcpErrors.inc();
+      throw err;
+    } finally {
+      timerEnd();
     }
-
-    const data = await res.json();
-
-    return data;
-  } catch (err) {
-    mcpErrors.inc();
-    throw err;
-  } finally {
-    timerEnd();
-  }
-  //    }
-  //  );
+  });
 }
 
 /**
@@ -191,26 +180,23 @@ async function callMCP(method, params) {
  * @returns LLM response
  */
 async function callLLM(messages) {
-  //return Pyroscope.wrapWithLabels(
-  //  { function: "callLLM", app: "bridge" },
-  //  async () => {
-  const timerEnd = ollamaLatency.startTimer();
-  ollamaRequests.inc();
-  try {
-    const response = await ollama.chat({
-      model: LLM_MODEL,
-      messages: messages,
-      stream: false,
-    });
-    return response?.message?.content || JSON.stringify(response);
-  } catch (err) {
-    ollamaErrors.inc();
-    throw err;
-  } finally {
-    timerEnd();
-  }
-  //  }
-  //);
+  return await tempo.withSpan("call_llm", { messages: messages }, async () => {
+    const timerEnd = ollamaLatency.startTimer();
+    ollamaRequests.inc();
+    try {
+      const response = await ollama.chat({
+        model: LLM_MODEL,
+        messages: messages,
+        stream: false,
+      });
+      return response?.message?.content || JSON.stringify(response);
+    } catch (err) {
+      ollamaErrors.inc();
+      throw err;
+    } finally {
+      timerEnd();
+    }
+  });
 }
 
 /***

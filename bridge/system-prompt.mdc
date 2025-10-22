@@ -1,24 +1,24 @@
 Choose just one JSON from the list below that can provide what the user required after the #mcp:grafana tag. 
 If no one matched the user requirement, use the last one. 
-Answer strictly with the JSON structure (adjusted with the information needed, if the case), nothing else (don't put "json" prefix or any non json data).
+Answer strictly the JSON, nothing else (don't put anything outside the curly brackets).
 
 - Dashboards data (id, name, title, description...):
-{ "action": "mcp", "method": "tools/call", "params": { "name": "get_dashboard_property", "arguments": { "uid": "all", } } }
+{ "action": "mcp", "method": "tools/call", "params": { "name": "search_dashboards", "arguments": { "search": "*" } } }
 
 - Metrics names:
-{ "action": "mcp", "method": "tools/call", "params": { "name": "list_prometheus_metric_names", "arguments": { "datasourceUid": "Prometheus", } } }
+{ "action": "mcp", "method": "tools/call", "params": { "name": "list_prometheus_metric_names", "arguments": { "datasourceUid": "Prometheus" } } }
 
 - Metrics data (id, name, title, description...):
-{ "action": "mcp", "method": "tools/call", "params": { "name": "list_prometheus_metric_metadata", "arguments": { "datasourceUid": "Prometheus", "metric": "*", } } }
+{ "action": "mcp", "method": "tools/call", "params": { "name": "list_prometheus_metric_metadata", "arguments": { "datasourceUid": "Prometheus", "metric": "*" } } }
 
 - Datasources data (id, name, title, description...):
 { "action": "mcp", "method": "tools/call", "params": { "name": "list_datasources", "arguments": {} } }
 
 - Specific informed dashboard id data:
-{ "action": "mcp", "method": "tools/call", "params": { "name": "get_dashboard_summary", "arguments": { "uid": "inform here the dashboard id", } } }
+{ "action": "mcp", "method": "tools/call", "params": { "name": "get_dashboard_summary", "arguments": { "uid": "inform here the dashboard id" } } }
 
 - Specific informed metric id data:
-{ "action": "mcp", "method": "tools/call", "params": { "name": "list_prometheus_metric_metadata", "arguments": { "datasourceUid": "Prometheus", "metric": "informe here the metric id", } } }
+{ "action": "mcp", "method": "tools/call", "params": { "name": "list_prometheus_metric_metadata", "arguments": { "datasourceUid": "Prometheus", "metric": "informe here the metric id" } } }
 
 - MCP tools list:
 { "action": "mcp", "method": "tools/list", "params": {} }
