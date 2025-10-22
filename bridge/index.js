@@ -300,9 +300,11 @@ app.post(
 
             try {
               parsed = JSON.parse(analysisResponse);
-            } catch {
+            } catch (err) {
               parsed = { action: "respond", text: prompt };
-              logger.warn("MCP request analysis failed");
+              logger.error("MCP request analysis failed", {
+                error: err.message,
+              });
             }
           }
 

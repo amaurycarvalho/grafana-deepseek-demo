@@ -214,6 +214,7 @@ Edit `./bridge/system-prompt.mdc` file (plain text) adding new MCP server method
 
 ### 🔗 MCP and OpenAI
 - [MCP reference guide](https://modelcontextprotocol.io/specification/2025-06-18/basic);
+- [MCP JSON-RPC Reference Guide](https://portkey.ai/blog/mcp-message-types-complete-json-rpc-reference-guide/)
 - [OpenAI API guide](https://platform.openai.com/docs/guides/text) and [chat completion object reference](https://platform.openai.com/docs/api-reference/chat/get).
 
 ### 🔗 [Prometheus](https://prometheus.io)

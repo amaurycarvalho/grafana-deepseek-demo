@@ -1,25 +1,27 @@
-Choose just one JSON from the list below that can provide what the user required after the #mcp:grafana tag. If no one matched the user requirement, use the last one. Respond strictly with the chosen JSON, nothing else.
+Choose just one JSON from the list below that can provide what the user required after the #mcp:grafana tag. 
+If no one matched the user requirement, use the last one. 
+Answer strictly with the JSON structure (adjusted with the information needed, if the case), nothing else (don't put "json" prefix or any non json data).
 
-- To return all dashboards meta data:
-{ action: "mcp", method: "tools/call", params: { tool: "get_dashboard_property", params: { uid: "all", } } }
+- Dashboards data (id, name, title, description...):
+{ "action": "mcp", "method": "tools/call", "params": { "name": "get_dashboard_property", "arguments": { "uid": "all", } } }
 
-- To return all metrics names:
-{ action: "mcp", method: "tools/call", params: { tool: "list_prometheus_metric_names", params: { datasourceUid: "Prometheus", } } }
+- Metrics names:
+{ "action": "mcp", "method": "tools/call", "params": { "name": "list_prometheus_metric_names", "arguments": { "datasourceUid": "Prometheus", } } }
 
-- To return all metrics meta data:
-{ action: "mcp", method: "tools/call", params: { tool: "list_prometheus_metric_metadata", params: { datasourceUid: "Prometheus", "metric": "*", } } }
+- Metrics data (id, name, title, description...):
+{ "action": "mcp", "method": "tools/call", "params": { "name": "list_prometheus_metric_metadata", "arguments": { "datasourceUid": "Prometheus", "metric": "*", } } }
 
-- To return all datasource names:
-{ action: "mcp", method: "tools/call", params: { tool: "list_datasources", params: {} } }
+- Datasources data (id, name, title, description...):
+{ "action": "mcp", "method": "tools/call", "params": { "name": "list_datasources", "arguments": {} } }
 
-- To return the specified dashboard id description:
-{ action: "mcp", method: "tools/call", params: { tool: "get_dashboard_summary", params: { uid: "PUT HERE THE USER INFORMED DASHBOARD ID", } } }
+- Specific informed dashboard id data:
+{ "action": "mcp", "method": "tools/call", "params": { "name": "get_dashboard_summary", "arguments": { "uid": "inform here the dashboard id", } } }
 
-- To return the specified metric id description:
-{ action: "mcp", method: "tools/call", params: { tool: "list_prometheus_metric_metadata", params: { datasourceUid: "Prometheus", metric: "PUT HERE THE USER INFORMED METRIC ID", } } }
+- Specific informed metric id data:
+{ "action": "mcp", "method": "tools/call", "params": { "name": "list_prometheus_metric_metadata", "arguments": { "datasourceUid": "Prometheus", "metric": "informe here the metric id", } } }
 
-- To return all valid MCP server methods:
-{ action: "mcp", method: "tools/list", params: {} }
+- MCP tools list:
+{ "action": "mcp", "method": "tools/list", "params": {} }
 
 - Otherwise:
-{ action: "respond", text: "INFORM HERE YOUR NATURAL LANGUAGE ANSWER" }
+{ "action": "respond", "text": "inform here your natural language answer" }
