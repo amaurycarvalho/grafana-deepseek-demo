@@ -2,14 +2,14 @@
 
 This MVP project demonstrates the integration of *Deepseek LLM (via Ollama)* with *Grafana OSS*, providing basic autocompletion capabilities. It also enables *Deepseek* integration with *VSCode*, offering partial support for the *Model Context Protocol* (MCP).
 
-> ⚠️ **Warning**: This is a prototype (MVP) project intended for testing only.
+> ⚠️ **Warning**: This is a prototype (MVP) working in progress project intended for testing only.
 > Do not deploy it to production environments — it lacks security hardening and validation mechanisms.
 
 ## 📖 User's Guide
 
 ### Introduction
 
-Grafana’s built-in LLM support is currently available only on Grafana Cloud, through the [Grafana Assistent](https://grafana.com/docs/grafana-cloud/machine-learning/assistant/) service. While [initially free](https://grafana.com/whats-new/2025-10-08-grafana-assistant-is-now-generally-available/) it will become a [paid feature in 2026](https://grafana.com/docs/grafana-cloud/machine-learning/assistant/introduction/pricing/).
+Grafana’s built-in LLM support is currently available only on Grafana Cloud through the [Grafana Assistent](https://grafana.com/docs/grafana-cloud/machine-learning/assistant/) service. While [initially free](https://grafana.com/whats-new/2025-10-08-grafana-assistant-is-now-generally-available/) it will become a [paid feature in 2026](https://grafana.com/docs/grafana-cloud/machine-learning/assistant/introduction/pricing/).
 
 However, Grafana OSS provides basic LLM integration that works with OpenAI-compatible APIs.
 
@@ -102,9 +102,10 @@ You can easily run this setup locally with Docker and adapt it to your own envir
 
 Inside VSCode, try prompts like:
 
-- “Show all metrics names.”
-- “Show all dashboards names.”
-- “Show the CPU metrics.”
+- “#mcp:grafana Show all dashboards names.”
+- “#mcp:grafana Show all metrics names.”
+- “#mcp:grafana Show the CPU metrics.”
+- “#mcp:grafana:tools”
 
 
 ## 🧑‍💻 Developer Guide
@@ -184,7 +185,7 @@ Inside VSCode, try prompts like:
 #### Bridge configurations
 
 - *Changing the LLM model*: edit `.env` file and change the `LLM_MODEL` environment variable.
-- *Direct LLM or MCP proxy mode*: edit `.env` file and change the `LLM_MODE` environment variable.
+- *LLM or TEST mode*: edit `.env` file and change the `BRIDGE_MODE` environment variable.
 
 #### Grafana configurations
 

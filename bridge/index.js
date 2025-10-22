@@ -20,7 +20,7 @@ const MCP_URL = process.env.MCP_URL || "http://mcp-grafana:8000";
 const LOKI_URL = process.env.LOKI_URL || "http://loki:3100";
 const PYROSCOPE_URL = process.env.PYROSCOPE_URL || "http://pyroscope:4040";
 const PYROSCOPE_AUTH_TOKEN = process.env.PYROSCOPE_AUTH_TOKEN || "";
-const LLM_MODE = process.env.LLM_MODE || "MCP"; // LLM | MCP
+const BRIDGE_MODE = process.env.BRIDGE_MODE || "LLM"; // LLM or TEST
 const SYSTEM_PROMPT_MDC =
   process.env.SYSTEM_PROMPT_MDC || "./system-prompt.mdc";
 
@@ -34,45 +34,45 @@ client.collectDefaultMetrics({ register });
 
 const bridgeRequests = new client.Counter({
   name: "bridge_requests_total",
-  help: "Total de requisições recebidas pelo bridge",
+  help: "Total requests received by the bridge",
 });
 const bridgeErrors = new client.Counter({
   name: "bridge_errors_total",
-  help: "Total de erros ocorridos no bridge",
+  help: "Total errors occurred in the bridge",
 });
 const bridgeLatency = new client.Histogram({
   name: "bridge_request_latency_seconds",
-  help: "Tempo de resposta do bridge",
+  help: "Bridge response time",
   buckets: [0.5, 1, 2, 5, 10, 30, 60, 120, 180, 300, 600],
 });
 const bridgeHealth = new client.Gauge({
   name: "bridge_health_status",
-  help: "Status de saúde do bridge (1 = saudável, 0 = falhou no último check)",
+  help: "Bridge health status (1 = healthy, 0 = failed last check)",
 });
 const mcpRequests = new client.Counter({
   name: "bridge_mcp_requests_total",
-  help: "Total de chamadas feitas ao MCP Server",
+  help: "Total calls made to the MCP Server",
 });
 const mcpLatency = new client.Histogram({
   name: "bridge_mcp_latency_seconds",
-  help: "Tempo de resposta do MCP Server",
+  help: "MCP Server Response Time",
 });
 const mcpErrors = new client.Counter({
   name: "bridge_mcp_errors_total",
-  help: "Total de erros ocorridos na chamada ao MCP Server",
+  help: "Total errors occurred when calling the MCP Server",
 });
 const ollamaRequests = new client.Counter({
   name: "bridge_ollama_requests_total",
-  help: "Total de chamadas feitas ao Ollama",
+  help: "Total calls made to Ollama",
 });
 const ollamaLatency = new client.Histogram({
   name: "bridge_ollama_latency_seconds",
-  help: "Tempo de resposta do Ollama",
+  help: "Ollama response time",
   buckets: [0.5, 1, 2, 5, 10, 30, 60, 120, 180, 300, 600],
 });
 const ollamaErrors = new client.Counter({
   name: "bridge_ollama_errors_total",
-  help: "Total de erros ocorridos na chamada ao Ollama",
+  help: "Total errors occurred in the call to Ollama",
 });
 
 register.registerMetric(bridgeRequests);
@@ -98,9 +98,18 @@ Pyroscope.init({
     env: process.env.NODE_ENV || "dev",
     service: "bridge",
   },
+  labels: {},
   sourceMap: true,
 });
 Pyroscope.start();
+
+function pyroscopeSetLabelsMiddleware(labels) {
+  return (req, res, next) => {
+    Pyroscope.wrapWithLabels(labels, async () => {
+      next();
+    });
+  };
+}
 
 /***
  * Loki setup
@@ -124,9 +133,7 @@ const logger = winston.createLogger({
 
 function loadSystemPrompt() {
   logger.info("Loading system prompt", { filename: SYSTEM_PROMPT_MDC });
-  const content = fs.readFileSync(SYSTEM_PROMPT_MDC, "utf-8");
-  logger.info("System prompt loaded", { content });
-  return content;
+  return fs.readFileSync(SYSTEM_PROMPT_MDC, "utf-8");
 }
 
 const SYSTEM_PROMPT = loadSystemPrompt();
@@ -206,113 +213,97 @@ async function callLLM(messages) {
   //);
 }
 
-app.get("/v1/chat/completions/:completion_id/messages", async (req, res) => {
-  const completionId = req.params.completion_id;
-  logger.info("Get completion messages request", {
-    id: completionId,
-    body: JSON.stringify(res.body),
-  });
-  res.json({ message: "Completion messages retrieved", id: completionId });
-});
-
 /***
  * Ollama Chat endpoint
  * "LLM" mode: send data direct to LLM
  * "MCP" mode: do the MCP server → LLM integration
  */
-app.post("/v1/chat/completions", async (req, res) => {
-  Pyroscope.wrapWithLabels(
-    { endpoint: "/v1/chat/completions", app: "bridge" },
-    async () => {
-      const endTimer = bridgeLatency.startTimer();
-      bridgeRequests.inc();
+app.post(
+  "/v1/chat/completions",
+  pyroscopeSetLabelsMiddleware({
+    endpoint: "/v1/chat/completions",
+  }),
+  async (req, res) => {
+    const endTimer = bridgeLatency.startTimer();
+    bridgeRequests.inc();
 
-      try {
-        const body = req.body;
-        let prompt = "";
+    try {
+      const body = req.body;
+      let prompt = "";
 
-        if (body.messages) {
-          prompt = body.messages
-            .map((m) => `${m.role}: ${m.content}`)
-            .join("\n");
-        } else if (body.prompt) {
-          prompt = body.prompt;
-        } else if (body.input) {
-          prompt = body.input;
-        } else {
-          prompt = JSON.stringify(body);
-        }
+      if (body.messages) {
+        prompt = body.messages.map((m) => `${m.role}: ${m.content}`).join("\n");
+      } else if (body.prompt) {
+        prompt = body.prompt;
+      } else if (body.input) {
+        prompt = body.input;
+      } else {
+        prompt = JSON.stringify(body);
+      }
 
-        const respId = `chatcmpl-${crypto.randomBytes(16).toString("hex")}`;
-        let respCreated = Math.floor(Date.now() / 1000);
+      const respId = `chatcmpl-${crypto.randomUUID()}`;
+      //  req.headers["chatcmpl-id"] || `chatcmpl-${crypto.randomUUID()}`;
+      let respCreated = Math.floor(Date.now() / 1000);
 
-        if (body.stream) {
-          logger.info("Prompt received (response as stream requested)", {
-            prompt,
-          });
-          // --- STREAMING MODE ---
-          // stream's header
-          res.setHeader("Content-Type", "text/event-stream");
-          res.setHeader("Cache-Control", "no-cache");
-          res.setHeader("Connection", "keep-alive");
-          // stream's start
-          res.write(
-            `data: ${JSON.stringify({
-              id: respId,
-              object: "chat.completion.chunk",
-              created: respCreated,
-              model: LLM_MODEL,
-              choices: [
-                {
-                  index: 0,
-                  delta: { role: "assistant" },
-                },
-              ],
-            })}\n\n`
-          );
-        } else {
-          logger.info("Prompt received", { prompt });
-        }
+      if (body.stream) {
+        logger.info("Prompt received (response as stream requested)", {
+          prompt,
+        });
+        // --- STREAMING MODE ---
+        // stream's header
+        res.setHeader("Content-Type", "text/event-stream");
+        res.setHeader("Cache-Control", "no-cache");
+        res.setHeader("Connection", "keep-alive");
+        // stream's start
+        res.write(
+          `data: ${JSON.stringify({
+            id: respId,
+            object: "chat.completion.chunk",
+            created: respCreated,
+            model: LLM_MODEL,
+            choices: [
+              {
+                index: 0,
+                delta: { role: "assistant" },
+              },
+            ],
+          })}\n\n`
+        );
+      } else {
+        logger.info("Prompt received", { prompt });
+      }
 
-        let finalResponse = "";
-        let askLLM = true;
+      let finalResponse = "";
+      let askLLM = true;
+      let parsed;
 
-        // check if test mode
-        if (LLM_MODE === "TEST") {
-          logger.warn("Test mode activated");
-          finalResponse =
-            "Lorem ipsum dolor sit amet, consectetur adipiscing elit";
-          askLLM = false;
+      // check LLM mode (LLM or TEST)
+      if (BRIDGE_MODE === "LLM") {
+        // check if it's an MCP prompt request
+        if (prompt.includes("#mcp:grafana")) {
+          logger.info("MCP call to grafana requested");
+          if (prompt.includes("#mcp:grafana:tools")) {
+            logger.info("MCP server tools list requested");
+            parsed = { action: "mcp", method: "tools/list" };
+          } else {
+            logger.info("Asking LLM to do an MCP request analysis", {
+              prompt: SYSTEM_PROMPT,
+            });
+            const analysisResponse = await callLLM([
+              { role: "system", content: SYSTEM_PROMPT },
+              { role: "user", content: prompt?.user },
+            ]);
 
-          // check if direct LLM mode or prompt came from grafana
-        } else if (
-          LLM_MODE === "LLM" ||
-          (prompt.includes("system: You are an expert") &&
-            prompt.includes("user:"))
-        ) {
-          logger.info("Direct LLM mode activated");
-          askLLM = true;
+            logger.info("MCP request analysis response", {
+              response: analysisResponse,
+            });
 
-          // check if MCP mode
-        } else if (LLM_MODE === "MCP") {
-          logger.info("MCP mode activated, asking for a MCP analysis", {
-            prompt: SYSTEM_PROMPT,
-          });
-          const analysisResponse = await callLLM([
-            { role: "system", content: SYSTEM_PROMPT },
-            { role: "user", content: prompt },
-          ]);
-
-          logger.info("MCP analysis response", {
-            response: analysisResponse,
-          });
-
-          let parsed;
-          try {
-            parsed = JSON.parse(analysisResponse);
-          } catch {
-            parsed = { action: "respond", text: prompt };
-            logger.warn("MCP analysis failed");
+            try {
+              parsed = JSON.parse(analysisResponse);
+            } catch {
+              parsed = { action: "respond", text: prompt };
+              logger.warn("MCP request analysis failed");
+            }
           }
 
           // check if LLM decided to do an MCP call
@@ -327,107 +318,102 @@ app.post("/v1/chat/completions", async (req, res) => {
             );
 
             if (mcpResponse.error) {
-              logger.error("Invalid MCP Server method call", { mcpResponse });
+              logger.error("Invalid MCP Server method call", {
+                error: mcpResponse?.error?.message,
+              });
+              finalResponse = "MCP Server internal error (see grafana logs)";
             } else {
-              logger.info("MCP Server response", { mcpResponse });
-            }
+              logger.info("MCP Server response", {
+                result: mcpResponse?.result,
+              });
 
-            // ask for LLM to transform the json in a textual response
-            logger.info("Asking for LLM final response");
-            finalResponse = await callLLM([
-              {
-                role: "system",
-                content:
-                  "You received the following telemetry data from MCP server. Summarize and explain it naturally to the user:",
-              },
-              { role: "assistant", content: JSON.stringify(mcpResponse) },
-              {
-                role: "user",
-                content: "Summarize this result in natural language.",
-              },
-            ]);
+              const mcpResult = JSON.stringify(mcpResponse?.result);
+
+              if (prompt.includes("#mcp:grafana:tools")) {
+                finalResponse = mcpResult;
+              } else {
+                // ask for LLM to transform the json in a textual response
+                logger.info("Asking for LLM final response");
+                finalResponse = await callLLM([
+                  {
+                    role: "system",
+                    content:
+                      "You received the following telemetry data from MCP server. Summarize and explain it naturally to the user:",
+                  },
+                  { role: "assistant", content: mcpResult },
+                  {
+                    role: "user",
+                    content: "Summarize this result in natural language.",
+                  },
+                ]);
+              }
+            }
             askLLM = false;
           } else {
-            finalResponse = parsed.text || analysisResponse;
             logger.warn(
               "LLM has decided not to use the MCP server for data collection"
             );
           }
         } else {
-          finalResponse = "Bridge invalid mode";
-          logger.error(finalResponse);
-          askLLM = false;
+          askLLM = true;
         }
+      } else {
+        logger.warn("Test mode activated");
+        finalResponse =
+          "Lorem ipsum dolor sit amet, consectetur adipiscing elit";
+        askLLM = false;
+      }
 
-        /// Return result to Grafana LLM App in the OpenAI format
-        respCreated = Math.floor(Date.now() / 1000);
-        if (body.stream) {
-          // --- STREAMING MODE ---
-          if (askLLM) {
-            const timerEnd = ollamaLatency.startTimer();
-            ollamaRequests.inc();
-            logger.info("Asking LLM for a streaming response");
-            try {
-              for await (const chunk of await ollama.chat({
-                model: LLM_MODEL,
-                messages: [{ role: "user", content: prompt }],
-                stream: true,
-              })) {
-                if (chunk.message?.content) {
-                  respCreated = Math.floor(Date.now() / 1000);
-                  res.write(
-                    `data: ${JSON.stringify({
-                      id: respId,
-                      object: "chat.completion.chunk",
-                      created: respCreated,
-                      model: LLM_MODEL,
-                      choices: [
-                        {
-                          index: 0,
-                          delta: { content: chunk.message.content },
-                        },
-                      ],
-                    })}\n\n`
-                  );
-                  logger.info("Response streaming", {
-                    delta: chunk.message.content,
-                  });
-                  finalResponse += chunk.message.content;
-                }
-                if (chunk.done) {
-                  logger.info("Response stream ending", {
-                    delta: finalResponse,
-                  });
-                  break;
-                }
+      /// Return result to Grafana LLM App in the OpenAI format
+      respCreated = Math.floor(Date.now() / 1000);
+      if (body.stream) {
+        // --- STREAMING MODE ---
+        if (askLLM) {
+          const timerEnd = ollamaLatency.startTimer();
+          ollamaRequests.inc();
+          logger.info("Asking LLM for a streaming response");
+          try {
+            for await (const chunk of await ollama.chat({
+              model: LLM_MODEL,
+              messages: [{ role: "user", content: prompt }],
+              stream: true,
+            })) {
+              if (chunk.message?.content) {
+                respCreated = Math.floor(Date.now() / 1000);
+                res.write(
+                  `data: ${JSON.stringify({
+                    id: respId,
+                    object: "chat.completion.chunk",
+                    created: respCreated,
+                    model: LLM_MODEL,
+                    choices: [
+                      {
+                        index: 0,
+                        delta: { content: chunk.message.content },
+                      },
+                    ],
+                  })}\n\n`
+                );
+                logger.info("Response streaming", {
+                  delta: chunk.message.content,
+                });
+                finalResponse += chunk.message.content;
               }
-            } catch (err) {
-              finalResponse = "Error in LLM response streaming";
-              logger.error(finalResponse, { error: err.message });
-              ollamaErrors.inc();
-            } finally {
-              timerEnd();
+              if (chunk.done) {
+                logger.info("Response stream ending", {
+                  delta: finalResponse,
+                });
+                break;
+              }
             }
-          } else {
-            res.write(
-              `data: ${JSON.stringify({
-                id: respId,
-                object: "chat.completion.chunk",
-                created: respCreated,
-                model: LLM_MODEL,
-                choices: [
-                  {
-                    index: 0,
-                    delta: { content: finalResponse },
-                  },
-                ],
-              })}\n\n`
-            );
+          } catch (err) {
+            finalResponse = "Error in LLM response streaming";
+            logger.error(finalResponse, { error: err.message });
+            ollamaErrors.inc();
+          } finally {
+            timerEnd();
           }
-          logger.info("LLM final response (as stream)", {
-            message: finalResponse,
-          });
-          // stream's end
+        } else {
           res.write(
             `data: ${JSON.stringify({
               id: respId,
@@ -437,58 +423,82 @@ app.post("/v1/chat/completions", async (req, res) => {
               choices: [
                 {
                   index: 0,
-                  delta: {},
-                  finish_reason: "stop",
+                  delta: { content: finalResponse },
                 },
               ],
             })}\n\n`
           );
-          res.write("data: [DONE]\n\n");
-          res.end();
-        } else {
-          // --- NON-STREAMING MODE ---
-          if (askLLM) {
-            logger.info("Asking LLM for a response");
-            finalResponse = await callLLM([{ role: "user", content: prompt }]);
-          }
-
-          logger.info("LLM final response", { message: finalResponse });
-
-          const result = {
+        }
+        logger.info("LLM final response (as stream)", {
+          message: finalResponse,
+        });
+        // stream's end
+        res.write(
+          `data: ${JSON.stringify({
             id: respId,
-            object: "chat.completion",
+            object: "chat.completion.chunk",
             created: respCreated,
             model: LLM_MODEL,
             choices: [
               {
                 index: 0,
-                message: {
-                  role: "assistant",
-                  content: finalResponse,
-                },
+                delta: {},
                 finish_reason: "stop",
               },
             ],
-            usage: {},
-          };
-          res.json(result);
+          })}\n\n`
+        );
+        res.write("data: [DONE]\n\n");
+        res.end();
+      } else {
+        // --- NON-STREAMING MODE ---
+        if (askLLM) {
+          logger.info("Asking LLM for a response");
+          finalResponse = await callLLM([{ role: "user", content: prompt }]);
         }
-      } catch (err) {
-        bridgeErrors.inc();
-        logger.error("Bridge error", { error: err.message });
-        res.status(500).json({ error: err.message });
-      } finally {
-        endTimer();
+
+        logger.info("LLM final response", { message: finalResponse });
+
+        const result = {
+          id: respId,
+          object: "chat.completion",
+          created: respCreated,
+          model: LLM_MODEL,
+          choices: [
+            {
+              index: 0,
+              message: {
+                role: "assistant",
+                content: finalResponse,
+              },
+              finish_reason: "stop",
+            },
+          ],
+          usage: {},
+        };
+        res.json(result);
       }
+    } catch (err) {
+      if (res.headersSent) {
+        res.end();
+      } else {
+        res.status(500).json({ error: err.message });
+      }
+      bridgeErrors.inc();
+      logger.error("Bridge error", { error: err.message });
+    } finally {
+      endTimer();
     }
-  );
-});
+  }
+);
 
 /***
  * Health and Metrics endpoint
  */
-app.get("/health", (req, res) => {
-  Pyroscope.wrapWithLabels({ endpoint: "/health", app: "bridge" }, () => {
+app.get(
+  "/health",
+  pyroscopeSetLabelsMiddleware({ endpoint: "/health" }),
+  (req, res) => {
     try {
       bridgeHealth.set(1);
       res.json({ status: "ok" });
@@ -496,18 +506,17 @@ app.get("/health", (req, res) => {
       bridgeHealth.set(0);
       res.status(500).json({ status: "error", error: err.message });
     }
-  });
-});
+  }
+);
 
-app.get("/metrics", async (req, res) => {
-  Pyroscope.wrapWithLabels(
-    { endpoint: "/metrics", app: "bridge" },
-    async () => {
-      res.set("Content-Type", register.contentType);
-      res.end(await register.metrics());
-    }
-  );
-});
+app.get(
+  "/metrics",
+  pyroscopeSetLabelsMiddleware({ endpoint: "/metrics" }),
+  async (req, res) => {
+    res.set("Content-Type", register.contentType);
+    res.end(await register.metrics());
+  }
+);
 
 /***
  * Initialization
@@ -515,9 +524,9 @@ app.get("/metrics", async (req, res) => {
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
   console.log(
-    `bridge listening on ${PORT} [mode=${LLM_MODE}] (model=${LLM_MODEL}, MCP=${MCP_URL})`
+    `bridge listening on ${PORT} [mode=${BRIDGE_MODE}] (model=${LLM_MODEL}, MCP=${MCP_URL})`
   );
   logger.info(
-    `bridge listening on ${PORT} [mode=${LLM_MODE}] (model=${LLM_MODEL}, MCP=${MCP_URL})`
+    `bridge listening on ${PORT} [mode=${BRIDGE_MODE}] (model=${LLM_MODEL}, MCP=${MCP_URL})`
   );
 });

@@ -1,21 +1,25 @@
-First, study the Grafana MCP server telemetry methods below, choosing the right one from the list that can provide more data for what the user prompt requires.
+Choose just one JSON from the list below that can provide what the user required after the #mcp:grafana tag. If no one matched the user requirement, use the last one. Respond strictly with the chosen JSON, nothing else.
 
-[
-{ method:"get_dashboard_property", params: { uid: "all", }, description: "return all dashboards meta data" }, 
-{ method:"list_prometheus_metric_metadata", params: { datasourceUid: "Prometheus", "metric": "*", }, description: "return all metrics meta data" },
-{ method:"list_prometheus_metric_names", params: { datasourceUid: "Prometheus", }, description: "return all metrics names" },
-{ method:"get_dashboard_summary", params: { uid: "dashboard_uid", }, description: "return the specified dashboard description" },
-{ method:"list_prometheus_metric_metadata", params: { datasourceUid: "Prometheus", metric: "metric_uid", }, description: "return the specified metric description" },
-{ method:"list_datasources", params: {}, description: "return all datasource names" },
-{ method:"tools/list", params: {}, description: "return all valid MCP server methods" },
-]
+- To return all dashboards meta data:
+{ action: "mcp", method: "tools/call", params: { tool: "get_dashboard_property", params: { uid: "all", } } }
 
-Then, respond strictly with the JSON structure below if you found a method from the previous list that matchs the user requirements, filling it with the proper MCP method name and required params (dont put anything more than it in this JSON):
+- To return all metrics names:
+{ action: "mcp", method: "tools/call", params: { tool: "list_prometheus_metric_names", params: { datasourceUid: "Prometheus", } } }
 
-{"action": "mcp", "method": "...", "params": { ... } }
+- To return all metrics meta data:
+{ action: "mcp", method: "tools/call", params: { tool: "list_prometheus_metric_metadata", params: { datasourceUid: "Prometheus", "metric": "*", } } }
 
-Otherwise, if no MCP method matchs the user requirement, use only in this case the JSON structure below, filling it with your natural language answer:
+- To return all datasource names:
+{ action: "mcp", method: "tools/call", params: { tool: "list_datasources", params: {} } }
 
-{"action": "respond", "text": "your natural language answer"}
+- To return the specified dashboard id description:
+{ action: "mcp", method: "tools/call", params: { tool: "get_dashboard_summary", params: { uid: "PUT HERE THE USER INFORMED DASHBOARD ID", } } }
 
-Don't mix up the two JSON structures in a same response.
+- To return the specified metric id description:
+{ action: "mcp", method: "tools/call", params: { tool: "list_prometheus_metric_metadata", params: { datasourceUid: "Prometheus", metric: "PUT HERE THE USER INFORMED METRIC ID", } } }
+
+- To return all valid MCP server methods:
+{ action: "mcp", method: "tools/list", params: {} }
+
+- Otherwise:
+{ action: "respond", text: "INFORM HERE YOUR NATURAL LANGUAGE ANSWER" }
