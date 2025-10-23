@@ -4,8 +4,8 @@ import client from "prom-client";
  * Prometheus Metrics base class
  */
 export class PrometheusMetrics {
-  constructor(serviceName = "app") {
-    this.serviceName = serviceName;
+  constructor(metricsPrefixName = "app") {
+    this.metricsPrefixName = metricsPrefixName;
     this.register = new client.Registry();
     client.collectDefaultMetrics({ register: this.register });
   }

@@ -16,6 +16,7 @@
     "@opentelemetry/resources": "^2.2.0",
     "@opentelemetry/sdk-node": "^0.207.0",
     "@opentelemetry/semantic-conventions": "^1.37.0",
+    "@opentelemetry/auto-instrumentations-node": "^0.66.0",
     "@pyroscope/nodejs": "^0.4.5",
     "express": "^4.19.2",
     "node-fetch": "^3.3.2",

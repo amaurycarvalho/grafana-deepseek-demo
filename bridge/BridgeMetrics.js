@@ -5,61 +5,63 @@ import { PrometheusMetrics } from "./PrometheusMetrics.js";
  * MCP Bridge Metrics Class
  */
 export class BridgeMetrics extends PrometheusMetrics {
-  constructor(serviceName = process.env.BRIDGE_SERVICE_NAME || "mcp-bridge") {
-    super(serviceName);
+  constructor(
+    metricsPrefixName = process.env.BRIDGE_METRICS_PREFIX_NAME || "bridge"
+  ) {
+    super(metricsPrefixName);
     this.initBridgeMetrics();
   }
 
   initBridgeMetrics() {
     this.bridgeRequests = new client.Counter({
-      name: `${this.serviceName}_requests_total`,
-      help: `Total requests received by ${this.serviceName}`,
+      name: `${this.metricsPrefixName}_requests_total`,
+      help: `Total requests received by ${this.metricsPrefixName}`,
     });
 
     this.bridgeErrors = new client.Counter({
-      name: `${this.serviceName}_errors_total`,
-      help: `Total errors occurred in ${this.serviceName}`,
+      name: `${this.metricsPrefixName}_errors_total`,
+      help: `Total errors occurred in ${this.metricsPrefixName}`,
     });
 
     this.bridgeLatency = new client.Histogram({
-      name: `${this.serviceName}_request_latency_seconds`,
-      help: `${this.serviceName} response time`,
+      name: `${this.metricsPrefixName}_request_latency_seconds`,
+      help: `${this.metricsPrefixName} response time`,
       buckets: [0.5, 1, 2, 5, 10, 30, 60, 120, 180, 300, 600],
     });
 
     this.bridgeHealth = new client.Gauge({
-      name: `${this.serviceName}_health_status`,
-      help: `${this.serviceName} health status (1 = healthy, 0 = failed last check)`,
+      name: `${this.metricsPrefixName}_health_status`,
+      help: `${this.metricsPrefixName} health status (1 = healthy, 0 = failed last check)`,
     });
 
     this.mcpRequests = new client.Counter({
-      name: `${this.serviceName}_mcp_requests_total`,
+      name: `${this.metricsPrefixName}_mcp_requests_total`,
       help: "Total calls made to the MCP Server",
     });
 
     this.mcpLatency = new client.Histogram({
-      name: `${this.serviceName}_mcp_latency_seconds`,
+      name: `${this.metricsPrefixName}_mcp_latency_seconds`,
       help: "MCP Server Response Time",
     });
 
     this.mcpErrors = new client.Counter({
-      name: `${this.serviceName}_mcp_errors_total`,
+      name: `${this.metricsPrefixName}_mcp_errors_total`,
       help: "Total errors occurred when calling the MCP Server",
     });
 
     this.ollamaRequests = new client.Counter({
-      name: `${this.serviceName}_ollama_requests_total`,
+      name: `${this.metricsPrefixName}_ollama_requests_total`,
       help: "Total calls made to Ollama",
     });
 
     this.ollamaLatency = new client.Histogram({
-      name: `${this.serviceName}_ollama_latency_seconds`,
+      name: `${this.metricsPrefixName}_ollama_latency_seconds`,
       help: "Ollama response time",
       buckets: [0.5, 1, 2, 5, 10, 30, 60, 120, 180, 300, 600],
     });
 
     this.ollamaErrors = new client.Counter({
-      name: `${this.serviceName}_ollama_errors_total`,
+      name: `${this.metricsPrefixName}_ollama_errors_total`,
       help: "Total errors occurred in the call to Ollama",
     });
 

@@ -1,10 +1,6 @@
 import { getNodeAutoInstrumentations } from "@opentelemetry/auto-instrumentations-node";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
 import { NodeSDK } from "@opentelemetry/sdk-node";
-import {
-  BasicTracerProvider,
-  SimpleSpanProcessor,
-} from "@opentelemetry/sdk-trace-node";
 import { HttpInstrumentation } from "@opentelemetry/instrumentation-http";
 import { resourceFromAttributes } from "@opentelemetry/resources";
 import { ATTR_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
@@ -53,13 +49,6 @@ export class TempoTracer {
       [ATTR_SERVICE_NAME]: this.serviceName,
       [ATTR_DEPLOYMENT_ENVIRONMENT]: this.env,
     });
-
-    this.provider = new BasicTracerProvider({
-      resource: this.resource,
-    });
-
-    this.provider.addSpanProcessor(new SimpleSpanProcessor(this.exporter));
-    this.provider.register();
 
     this.sdk = new NodeSDK({
       traceExporter: this.exporter,
