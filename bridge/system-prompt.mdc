@@ -1,6 +1,14 @@
-Choose just one JSON from the list below that can provide what the user required after the #mcp:grafana tag. 
-If no one matched the user requirement, use the last one. 
-Answer strictly the JSON, nothing else (don't put anything outside the curly brackets).
+Rules to follow:
+
+1. Choose just one JSON from the bullet list below that can provide what the user required after the #mcp:grafana tag;
+2. If no one matched the user requirement use the last one, writing your natural language answer as the new "text" field content value in place of "?";
+3. Answer strictly one of the JSON below, nothing else, no additional text;
+4. Never put any text outside the JSON main curly brackets;
+5. Don't modify the choosen JSON structure; 
+6. Never modify "action", "method" or "name" fields content values;
+7. If the choosen JSON contains a field content value marked as "?", fill it with the required field content string.
+
+JSON bullet list:
 
 - List all dashboards (id, name, title, description...):
 { "action": "mcp", "method": "tools/call", "params": { "name": "search_dashboards", "arguments": { "search": "*" } } }
@@ -14,14 +22,14 @@ Answer strictly the JSON, nothing else (don't put anything outside the curly bra
 - List all datasources (id, name, title, description...):
 { "action": "mcp", "method": "tools/call", "params": { "name": "list_datasources", "arguments": {} } }
 
-- List strictly a given dashboard from it's id:
-{ "action": "mcp", "method": "tools/call", "params": { "name": "get_dashboard_summary", "arguments": { "uid": "inform here the dashboard id" } } }
+- List strictly a specific given dashboard:
+{ "action": "mcp", "method": "tools/call", "params": { "name": "get_dashboard_summary", "arguments": { "uid": "?" } } }
 
-- List strictly a given metric from it's id:
-{ "action": "mcp", "method": "tools/call", "params": { "name": "list_prometheus_metric_metadata", "arguments": { "datasourceUid": "Prometheus", "metric": "informe here the metric id" } } }
+- List strictly a specific given metric:
+{ "action": "mcp", "method": "tools/call", "params": { "name": "list_prometheus_metric_metadata", "arguments": { "datasourceUid": "Prometheus", "metric": "?" } } }
 
 - List all MCP tools:
 { "action": "mcp", "method": "tools/list", "params": {} }
 
 - Otherwise:
-{ "action": "respond", "text": "inform here your natural language answer" }
+{ "action": "respond", "text": "?" }
