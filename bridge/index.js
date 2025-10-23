@@ -2,11 +2,11 @@ import express from "express";
 import crypto from "crypto";
 import fs from "fs";
 import fetch from "node-fetch";
-import client from "prom-client";
-import Pyroscope from "@pyroscope/nodejs";
 import { Ollama } from "ollama";
-import { tempo } from "./tempo.js";
-import logger from "./logger.js";
+import { TempoTracer } from "./TempoTracer.js";
+import { LokiLogger } from "./LokiLogger.js";
+import { BridgeMetrics } from "./BridgeMetrics.js";
+import { PyroscopeProfiler } from "./PyroscopeProfiler.js";
 
 /***
  * Main configuration
@@ -17,107 +17,18 @@ app.use(express.json());
 const OLLAMA_HOST = process.env.OLLAMA_HOST || "http://ollama:11434";
 const LLM_MODEL = process.env.LLM_MODEL || "deepseek-r1:1.5b";
 const MCP_URL = process.env.MCP_URL || "http://mcp-grafana:8000";
-const PYROSCOPE_URL = process.env.PYROSCOPE_URL || "http://pyroscope:4040";
-const PYROSCOPE_AUTH_TOKEN = process.env.PYROSCOPE_AUTH_TOKEN || "";
 const BRIDGE_MODE = process.env.BRIDGE_MODE || "LLM"; // LLM or TEST
+const BRIDGE_SERVICE_NAME = process.env.BRIDGE_SERVICE_NAME || "mcp-bridge";
 const SYSTEM_PROMPT_MDC =
   process.env.SYSTEM_PROMPT_MDC || "./system-prompt.mdc";
 
+const logger = new LokiLogger(BRIDGE_SERVICE_NAME);
 const ollama = new Ollama({ host: OLLAMA_HOST });
-
-/**
- * Prometheus metrics setup
- */
-const register = new client.Registry();
-client.collectDefaultMetrics({ register });
-
-const bridgeRequests = new client.Counter({
-  name: "bridge_requests_total",
-  help: "Total requests received by the bridge",
-});
-const bridgeErrors = new client.Counter({
-  name: "bridge_errors_total",
-  help: "Total errors occurred in the bridge",
-});
-const bridgeLatency = new client.Histogram({
-  name: "bridge_request_latency_seconds",
-  help: "Bridge response time",
-  buckets: [0.5, 1, 2, 5, 10, 30, 60, 120, 180, 300, 600],
-});
-const bridgeHealth = new client.Gauge({
-  name: "bridge_health_status",
-  help: "Bridge health status (1 = healthy, 0 = failed last check)",
-});
-const mcpRequests = new client.Counter({
-  name: "bridge_mcp_requests_total",
-  help: "Total calls made to the MCP Server",
-});
-const mcpLatency = new client.Histogram({
-  name: "bridge_mcp_latency_seconds",
-  help: "MCP Server Response Time",
-});
-const mcpErrors = new client.Counter({
-  name: "bridge_mcp_errors_total",
-  help: "Total errors occurred when calling the MCP Server",
-});
-const ollamaRequests = new client.Counter({
-  name: "bridge_ollama_requests_total",
-  help: "Total calls made to Ollama",
-});
-const ollamaLatency = new client.Histogram({
-  name: "bridge_ollama_latency_seconds",
-  help: "Ollama response time",
-  buckets: [0.5, 1, 2, 5, 10, 30, 60, 120, 180, 300, 600],
-});
-const ollamaErrors = new client.Counter({
-  name: "bridge_ollama_errors_total",
-  help: "Total errors occurred in the call to Ollama",
-});
-
-register.registerMetric(bridgeRequests);
-register.registerMetric(bridgeErrors);
-register.registerMetric(bridgeLatency);
-register.registerMetric(bridgeHealth);
-register.registerMetric(mcpRequests);
-register.registerMetric(mcpLatency);
-register.registerMetric(mcpErrors);
-register.registerMetric(ollamaRequests);
-register.registerMetric(ollamaLatency);
-register.registerMetric(ollamaErrors);
-
-/***
- * Pyroscope profiler setup
- */
-Pyroscope.init({
-  appName: "mcp-bridge",
-  serverAddress: PYROSCOPE_URL,
-  authToken: PYROSCOPE_AUTH_TOKEN,
-  sampleRate: 10,
-  tags: {
-    env: process.env.NODE_ENV || "dev",
-    service: "bridge",
-  },
-  labels: {},
-  sourceMap: true,
-});
-Pyroscope.start();
-
-function pyroscopeSetLabelsMiddleware(labels) {
-  return (req, res, next) => {
-    Pyroscope.wrapWithLabels(labels, async () => {
-      next();
-    });
-  };
-}
-
-/***
- * Tempo setup
- */
-
-await tempo.init({
-  serviceName: "mcp-bridge",
-  tempoUrl: "http://tempo:4318/v1/traces",
-});
+const metrics = new BridgeMetrics();
+const profiler = new PyroscopeProfiler({ appName: BRIDGE_SERVICE_NAME });
+const tempo = await new TempoTracer(BRIDGE_SERVICE_NAME, {
+  logger: logger,
+}).init();
 
 /***
  * System prompt load
@@ -138,8 +49,8 @@ const SYSTEM_PROMPT = loadSystemPrompt();
  */
 async function callMCP(method, params) {
   return await tempo.withSpan("call_mcp", { method: method }, async () => {
-    const timerEnd = mcpLatency.startTimer();
-    mcpRequests.inc();
+    const timerEnd = metrics.mcpLatency.startTimer();
+    metrics.mcpRequests.inc();
     try {
       const url = `${MCP_URL}/mcp`;
 
@@ -166,7 +77,7 @@ async function callMCP(method, params) {
 
       return data;
     } catch (err) {
-      mcpErrors.inc();
+      metrics.mcpErrors.inc();
       throw err;
     } finally {
       timerEnd();
@@ -181,8 +92,8 @@ async function callMCP(method, params) {
  */
 async function callLLM(messages) {
   return await tempo.withSpan("call_llm", { messages: messages }, async () => {
-    const timerEnd = ollamaLatency.startTimer();
-    ollamaRequests.inc();
+    const timerEnd = metrics.ollamaLatency.startTimer();
+    metrics.ollamaRequests.inc();
     try {
       const response = await ollama.chat({
         model: LLM_MODEL,
@@ -191,7 +102,7 @@ async function callLLM(messages) {
       });
       return response?.message?.content || JSON.stringify(response);
     } catch (err) {
-      ollamaErrors.inc();
+      metrics.ollamaErrors.inc();
       throw err;
     } finally {
       timerEnd();
@@ -206,12 +117,12 @@ async function callLLM(messages) {
  */
 app.post(
   "/v1/chat/completions",
-  pyroscopeSetLabelsMiddleware({
+  profiler.middleware({
     endpoint: "/v1/chat/completions",
   }),
   async (req, res) => {
-    const endTimer = bridgeLatency.startTimer();
-    bridgeRequests.inc();
+    const endTimer = metrics.bridgeLatency.startTimer();
+    metrics.bridgeRequests.inc();
 
     try {
       const body = req.body;
@@ -357,8 +268,8 @@ app.post(
       if (body.stream) {
         // --- STREAMING MODE ---
         if (askLLM) {
-          const timerEnd = ollamaLatency.startTimer();
-          ollamaRequests.inc();
+          const timerEnd = metrics.ollamaLatency.startTimer();
+          metrics.ollamaRequests.inc();
           logger.info("Asking LLM for a streaming response");
           try {
             for await (const chunk of await ollama.chat({
@@ -397,7 +308,7 @@ app.post(
           } catch (err) {
             finalResponse = "Error in LLM response streaming";
             logger.error(finalResponse, { error: err.message });
-            ollamaErrors.inc();
+            metrics.ollamaErrors.inc();
           } finally {
             timerEnd();
           }
@@ -472,7 +383,7 @@ app.post(
       } else {
         res.status(500).json({ error: err.message });
       }
-      bridgeErrors.inc();
+      metrics.bridgeErrors.inc();
       logger.error("Bridge error", { error: err.message });
     } finally {
       endTimer();
@@ -483,27 +394,12 @@ app.post(
 /***
  * Health and Metrics endpoint
  */
-app.get(
-  "/health",
-  pyroscopeSetLabelsMiddleware({ endpoint: "/health" }),
-  (req, res) => {
-    try {
-      bridgeHealth.set(1);
-      res.json({ status: "ok" });
-    } catch (err) {
-      bridgeHealth.set(0);
-      res.status(500).json({ status: "error", error: err.message });
-    }
-  }
+app.get("/health", profiler.middleware({ endpoint: "/health" }), (req, res) =>
+  metrics.health(req, res)
 );
 
-app.get(
-  "/metrics",
-  pyroscopeSetLabelsMiddleware({ endpoint: "/metrics" }),
-  async (req, res) => {
-    res.set("Content-Type", register.contentType);
-    res.end(await register.metrics());
-  }
+app.get("/metrics", profiler.middleware({ endpoint: "/metrics" }), (req, res) =>
+  metrics.metrics(req, res)
 );
 
 /***
