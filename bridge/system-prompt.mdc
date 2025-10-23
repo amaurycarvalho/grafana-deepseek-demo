@@ -1,12 +1,12 @@
 Rules to follow:
 
 1. Choose just one JSON from the bullet list below that can provide what the user required after the #mcp:grafana tag;
-2. If no one matched the user requirement use the last one, writing your natural language answer as the new "text" field content value in place of "?";
+2. If no one matched the user requirement use the last one, writing your natural language answer string in place of "?";
 3. Answer strictly one of the JSON below, nothing else, no additional text;
 4. Never put any text outside the JSON main curly brackets;
-5. Don't modify the choosen JSON structure; 
-6. Never modify "action", "method" or "name" fields content values;
-7. If the choosen JSON contains a field content value marked as "?", fill it with the required field content string.
+5. Don't change the choosen JSON structure; 
+6. Don't change "action", "method" or "name" content values (ex: from "name": "search_dashboards" to "name": "anything else");
+7. If the choosen JSON contains a value marked as "?", fill it with the required field content string.
 
 JSON bullet list:
 
