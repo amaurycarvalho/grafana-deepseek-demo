@@ -25,6 +25,6 @@ app.get(
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
   bridge.logger.info(
-    `bridge listening on ${PORT} [mode=${bridge.config.mode}] (model=${bridge.config.llmModel}, MCP=${bridge.config.mcpUrl})`
+    `[bridge] listening on ${PORT} [mode=${bridge.config.mode}] (model=${bridge.config.llmModel}, MCP=${bridge.config.mcpUrl})`
   );
 });

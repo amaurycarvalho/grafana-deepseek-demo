@@ -38,3 +38,55 @@ export class PyroscopeProfiler {
     };
   }
 }
+
+/* -------------------------------------------------------------------------- */
+/*                        DECORATORS UTILS (for TypeScript)                   */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * @profiled - Pyroscope.wrapWithLabels() decorator
+ * @example
+ *   @profiled({ function: "doWork", module: "service" })
+ *   async doWork() { ... }
+ */
+export function profiled(labels = {}) {
+  return function (target, propertyKey, descriptor) {
+    const originalMethod = descriptor.value;
+
+    descriptor.value = async function (...args) {
+      const profiler = this.profiler; // espera-se que a classe tenha this.profiler = new PyroscopeProfiler(...)
+      const methodName = propertyKey;
+
+      if (!profiler || typeof Pyroscope.wrapWithLabels !== "function") {
+        this.logger?.warn?.(
+          `[profiled] Pyroscope not initialized for ${methodName}`
+        );
+        return await originalMethod.apply(this, args);
+      }
+
+      // Adiciona automaticamente o nome do método aos labels
+      const fullLabels = {
+        function: methodName,
+        service: profiler.appName,
+        ...labels,
+      };
+
+      const maybeAsync = originalMethod.constructor.name === "AsyncFunction";
+      return Pyroscope.wrapWithLabels(fullLabels, async () => {
+        try {
+          const result = maybeAsync
+            ? await originalMethod.apply(this, args)
+            : originalMethod.apply(this, args);
+          return result;
+        } catch (err) {
+          this.logger?.error?.(`[profiled] Error in ${methodName}`, {
+            error: err.message,
+          });
+          throw err;
+        }
+      });
+    };
+
+    return descriptor;
+  };
+}

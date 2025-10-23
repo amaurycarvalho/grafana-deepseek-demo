@@ -37,7 +37,7 @@ export class TempoTracer {
   }
 
   /**
-   * Inicializa o tracing no serviço.
+   * Tracer initialization
    */
   async init() {
     const ATTR_DEPLOYMENT_ENVIRONMENT = "deployment.environment.name";
@@ -64,8 +64,8 @@ export class TempoTracer {
     await this.sdk.start();
     this.tracer = trace.getTracer(this.serviceName);
 
-    console.log(
-      `[tempo] tracing+logging initialized for ${this.serviceName} (${this.env})`
+    this.logger.info(
+      `[tempo] tracing initialized for ${this.serviceName} (${this.env})`
     );
 
     process.on("SIGTERM", async () => {
@@ -74,10 +74,16 @@ export class TempoTracer {
   }
 
   /**
-   * Executa uma função dentro de um span ativo.
-   * @param {string} name Nome do span.
-   * @param {object} attributes Atributos adicionais.
-   * @param {Function} fn Função a ser executada dentro do span.
+   * Method manual span helper
+   * @param {string} name span name
+   * @param {object} attributes additional attributes
+   * @param {Function} fn function to be executed.
+   * @example
+   *   my_method( params ) {
+   *     return await this.tempo.withSpan("my_method", { params }, async () => {
+   *        ....
+   *     });
+   *   }
    */
   async withSpan(name, attributes = {}, fn) {
     if (!this.tracer) {
@@ -94,7 +100,7 @@ export class TempoTracer {
         const ctx = {
           addEvent: (eventName, data = {}) => {
             span.addEvent(eventName, data);
-            this.logger.debug(`event: ${eventName}`, data);
+            this.logger.debug(`[tempo] event: ${eventName}`, data);
           },
           span,
           log: this.logger,
@@ -111,7 +117,7 @@ export class TempoTracer {
         span.addEvent("span.error", { message: err.message });
         span.recordException(err);
         span.setStatus({ code: 2, message: err.message });
-        this.logger.error(`Error in span ${name}: ${err.message}`, {
+        this.logger.error(`[tempo] error in span ${name}: ${err.message}`, {
           stack: err.stack,
         });
         throw err;
@@ -123,7 +129,7 @@ export class TempoTracer {
   }
 
   /**
-   * Encerra o SDK e libera recursos.
+   * tracer shutdown
    */
   async shutdown() {
     if (this.sdk) {
@@ -131,4 +137,71 @@ export class TempoTracer {
       console.log(`[tempo] tracing terminated for ${this.serviceName}`);
     }
   }
+}
+
+/* -------------------------------------------------------------------------- */
+/*                        DECORATORS UTILS (for TypeScript)                   */
+/* -------------------------------------------------------------------------- */
+
+function wrapWithSpan(target, methodName, originalMethod) {
+  return function (...args) {
+    const tempo = this.tempo;
+    const logger = this.logger;
+
+    if (!tempo || typeof tempo.withSpan !== "function") {
+      logger?.warn?.(
+        `[traceable] TempoTracer not initialized for ${methodName}`
+      );
+      return originalMethod.apply(this, args);
+    }
+
+    return tempo.withSpan(methodName, {}, () => {
+      try {
+        const result = originalMethod.apply(this, args);
+        // Retorna direto se for sync, await se for Promise
+        return result instanceof Promise ? result : result;
+      } catch (err) {
+        logger?.error?.(`[traceable] Error in ${methodName}`, {
+          error: err.message,
+        });
+        throw err;
+      }
+    });
+  };
+}
+
+/**
+ * @traceable — method's auto span decorator
+ * @example
+ *   @traceable
+ *   async myMethod() { ... }
+ */
+export function traceable(target, propertyKey, descriptor) {
+  descriptor.value = wrapWithSpan(target, propertyKey, descriptor.value);
+  return descriptor;
+}
+
+/**
+ * @autoTraceable — class all public methods auto span decorator
+ * @example
+ *   @autoTraceable
+ *   export class MyClass { ... }
+ */
+export function autoTraceable(targetClass) {
+  const methodNames = Object.getOwnPropertyNames(targetClass.prototype).filter(
+    (name) =>
+      name !== "constructor" &&
+      typeof targetClass.prototype[name] === "function"
+  );
+
+  for (const methodName of methodNames) {
+    const originalMethod = targetClass.prototype[methodName];
+    targetClass.prototype[methodName] = wrapWithSpan(
+      targetClass.prototype,
+      methodName,
+      originalMethod
+    );
+  }
+
+  return targetClass;
 }

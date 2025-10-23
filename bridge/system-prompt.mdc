@@ -2,25 +2,25 @@ Choose just one JSON from the list below that can provide what the user required
 If no one matched the user requirement, use the last one. 
 Answer strictly the JSON, nothing else (don't put anything outside the curly brackets).
 
-- Dashboards data (id, name, title, description...):
+- List all dashboards (id, name, title, description...):
 { "action": "mcp", "method": "tools/call", "params": { "name": "search_dashboards", "arguments": { "search": "*" } } }
 
-- Metrics names:
+- List all metrics names:
 { "action": "mcp", "method": "tools/call", "params": { "name": "list_prometheus_metric_names", "arguments": { "datasourceUid": "Prometheus" } } }
 
-- Metrics data (id, name, title, description...):
+- List all metrics (id, name, title, description...):
 { "action": "mcp", "method": "tools/call", "params": { "name": "list_prometheus_metric_metadata", "arguments": { "datasourceUid": "Prometheus", "metric": "*" } } }
 
-- Datasources data (id, name, title, description...):
+- List all datasources (id, name, title, description...):
 { "action": "mcp", "method": "tools/call", "params": { "name": "list_datasources", "arguments": {} } }
 
-- Specific informed dashboard id data:
+- List strictly a given dashboard from it's id:
 { "action": "mcp", "method": "tools/call", "params": { "name": "get_dashboard_summary", "arguments": { "uid": "inform here the dashboard id" } } }
 
-- Specific informed metric id data:
+- List strictly a given metric from it's id:
 { "action": "mcp", "method": "tools/call", "params": { "name": "list_prometheus_metric_metadata", "arguments": { "datasourceUid": "Prometheus", "metric": "informe here the metric id" } } }
 
-- MCP tools list:
+- List all MCP tools:
 { "action": "mcp", "method": "tools/list", "params": {} }
 
 - Otherwise:

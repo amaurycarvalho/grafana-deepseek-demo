@@ -4,7 +4,8 @@
   "description": "Ollama (LLM) and MCP Server bridge to Grafana integration via OpenAI-compatible API.",
   "type": "module",
   "main": "index.js",
-  "scripts": {
+  "experimentalDecorators": true,
+   "scripts": {
     "start": "node index.js",
     "dev": "nodemon index.js",
     "lint": "eslint . --ext .js,.mjs"

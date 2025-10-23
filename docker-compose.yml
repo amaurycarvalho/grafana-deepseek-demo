@@ -131,7 +131,7 @@ services:
     container_name: grafana
     user: "472"
     environment:
-      - GF_INSTALL_PLUGINS=grafana-llm-app
+      - GF_INSTALL_PLUGINS=grafana-llm-app 0.22.8 # there's a bug on the 0.22.9
     ports:
       - "3000:3000"
     volumes:

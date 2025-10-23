@@ -142,7 +142,7 @@ And, still experimentally:
 
 ---
 
-### 🧠 LLM Bridge Tests
+### 🧠 LLM Bridge Manual Tests
 
 #### Health check
    ```
@@ -154,9 +154,9 @@ And, still experimentally:
    curl -X POST http://localhost:3001/v1/chat/completions -H "Content-Type: application/json" -d '{"messages": [{"role":"user","content":"Hello"}]}'
    ```
 
-#### Example query
+#### Example MCP query
    ```
-   curl -X POST http://localhost:3001/v1/chat/completions -H "Content-Type: application/json" -d '{"messages":[{"role":"user","content":"show cpu usage last 5m"}]}'
+   curl -X POST http://localhost:3001/v1/chat/completions -H "Content-Type: application/json" -d '{"messages":[{"role":"user","content":"#mcp:grafana Show all dashboards names."}]}'
    ```
 
 ---
