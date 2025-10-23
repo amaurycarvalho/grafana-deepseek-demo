@@ -49,12 +49,19 @@ export class BridgeService {
    * service initializer
    */
   async init() {
-    this.tempo = await new TempoTracer(this.config.serviceName, {
-      logger: this.logger,
-    }).init();
+    try {
+      this.tempo = new TempoTracer(this.config.serviceName, {
+        logger: this.logger,
+      });
+      await this.tempo.init();
 
-    this.systemPrompt = this.loadSystemPrompt();
-    this.logger.info(`[bridge] ${this.config.serviceName} initialized`);
+      this.systemPrompt = this.loadSystemPrompt();
+      this.logger.info(`[bridge] ${this.config.serviceName} initialized`);
+    } catch (err) {
+      this.metrics.bridgeErrors.inc();
+      this.logger.error("Bridge initialization failed", { error: err.message });
+      throw err;
+    }
     return this;
   }
 
@@ -146,11 +153,13 @@ export class BridgeService {
       const respCreated = Math.floor(Date.now() / 1000);
       const stream = body.stream === true;
 
+      this.logger.info("Prompt received", { prompt });
+
       if (stream) {
+        this.logger.info("Response as stream requested by the chat client");
         this.setupStream(res, respId, respCreated);
       }
 
-      this.logger.info("Prompt received", { prompt });
       const response = await this.processPrompt(
         prompt,
         body,
@@ -190,67 +199,107 @@ export class BridgeService {
 
     // check if it's an MCP request
     if (prompt.includes("#mcp:grafana")) {
+      this.logger.info("MCP call to grafana requested");
       if (prompt.endsWith("#mcp:grafana:tools")) {
+        this.logger.info("MCP server tools list requested");
         parsed = { action: "mcp", method: "tools/list" };
       } else {
+        this.logger.info("Asking LLM to do an MCP request analysis", {
+          prompt: this.systemPrompt,
+        });
         const analysisResponse = await this.callLLM([
           { role: "system", content: this.systemPrompt },
           { role: "user", content: prompt },
         ]);
+
+        this.logger.info("MCP request analysis response", {
+          response: analysisResponse,
+        });
+
         try {
           parsed = JSON.parse(analysisResponse);
-        } catch {
+        } catch (err) {
           parsed = { action: "respond", text: prompt };
+          this.logger.error("MCP request analysis failed", {
+            error: err.message,
+          });
         }
       }
 
       // execute MCP call if needed
       if (parsed.action === "mcp" && parsed.method) {
+        this.logger.info(
+          `Executing method ${parsed.method} on the MCP Server...`
+        );
         const mcpResponse = await this.callMCP(
           parsed.method,
           parsed.params || {}
         );
-        const mcpResult = JSON.stringify(mcpResponse?.result);
 
-        if (prompt.endsWith("#mcp:grafana:tools")) {
-          finalResponse = mcpResult;
+        if (mcpResponse.error) {
+          this.logger.error("Invalid MCP Server method call", {
+            error: mcpResponse?.error?.message,
+          });
+          finalResponse = "MCP Server internal error (see grafana logs)";
         } else {
-          finalResponse = await this.callLLM([
-            {
-              role: "system",
-              content:
-                "You received telemetry data from MCP server. Summarize naturally.",
-            },
-            { role: "assistant", content: mcpResult },
-            {
-              role: "user",
-              content: "Summarize this result in natural language.",
-            },
-          ]);
-        }
+          this.logger.info("MCP Server response", {
+            result: mcpResponse?.result,
+          });
 
+          const mcpResult = JSON.stringify(mcpResponse?.result);
+
+          if (prompt.endsWith("#mcp:grafana:tools")) {
+            finalResponse = mcpResult;
+          } else {
+            // ask for LLM to transform the json in a textual response
+            this.logger.info("Asking for LLM final response");
+            finalResponse = await this.callLLM([
+              {
+                role: "system",
+                content:
+                  "You received telemetry data from MCP server. Summarize naturally.",
+              },
+              { role: "assistant", content: mcpResult },
+              {
+                role: "user",
+                content: "Summarize this result in natural language.",
+              },
+            ]);
+          }
+        }
         askLLM = false;
+      } else {
+        this.logger.warn(
+          "LLM has decided not to use the MCP server for data collection"
+        );
       }
     }
 
     // final response
     if (stream) {
       if (askLLM) {
-        await this.streamLLMResponse(prompt, res, respId);
+        this.logger.info("Asking LLM for a streaming response");
+        finalResponse = await this.streamLLMResponse(prompt, res, respId);
       } else {
         this.writeStreamChunk(res, respId, finalResponse);
       }
       this.endStream(res, respId);
+      this.logger.info("LLM final response", { message: finalResponse });
+      return {};
     } else {
       if (askLLM) {
+        this.logger.info("Asking LLM for a response");
         finalResponse = await this.callLLM([{ role: "user", content: prompt }]);
       }
+      this.logger.info("LLM final response", { message: finalResponse });
       return this.createResponse(respId, finalResponse);
     }
   }
 
   /***
    * Non streaming chat completion response helper
+   * @param respId response ID
+   * @param content final response
    */
   createResponse(respId, content) {
     return {
@@ -324,6 +373,7 @@ export class BridgeService {
    */
   async streamLLMResponse(prompt, res, respId) {
     const timerEnd = this.metrics.ollamaLatency.startTimer();
+    let finalResponse = "";
     this.metrics.ollamaRequests.inc();
 
     try {
@@ -333,17 +383,20 @@ export class BridgeService {
         stream: true,
       })) {
         if (chunk.message?.content) {
-          this.writeStreamChunk(res, respId, chunk.message.content);
+          this.writeStreamChunk(res, respId, chunk.message?.content);
+          finalResponse += chunk.message?.content;
         }
         if (chunk.done) break;
       }
     } catch (err) {
       this.metrics.ollamaErrors.inc();
-      this.logger.error("Stream error", { error: err.message });
-      this.writeStreamChunk(res, respId, "Error in streaming");
+      finalResponse = "Error in streaming";
+      this.logger.error(finalResponse, { error: err.message });
+      this.writeStreamChunk(res, respId, finalResponse);
     } finally {
       timerEnd();
     }
+    return finalResponse;
   }
 }
 
