@@ -1,5 +1,5 @@
 import client from "prom-client";
-import { PrometheusMetrics } from "./PrometheusMetrics.js";
+import { PrometheusMetrics } from "./helpers/PrometheusMetrics.js";
 
 /**
  * MCP Bridge Metrics Class

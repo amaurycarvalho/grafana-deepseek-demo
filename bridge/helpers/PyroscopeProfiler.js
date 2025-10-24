@@ -1,4 +1,5 @@
 import Pyroscope from "@pyroscope/nodejs";
+import { LokiLogger } from "./LokiLogger.js";
 
 export class PyroscopeProfiler {
   constructor({
@@ -9,33 +10,78 @@ export class PyroscopeProfiler {
     this.appName = appName;
     this.serverAddress = serverAddress;
     this.authToken = authToken;
+    this.initialized = false;
+    this.logger = new LokiLogger(`pyroscope-${appName}`);
 
     this.init();
   }
 
   init() {
-    Pyroscope.init({
-      appName: this.appName,
-      serverAddress: this.serverAddress,
-      authToken: this.authToken,
-      sampleRate: 10,
-      tags: {
-        env: process.env.NODE_ENV || "dev",
-        service: this.appName,
-      },
-      labels: {},
-      sourceMap: true,
-    });
+    try {
+      Pyroscope.init({
+        appName: this.appName,
+        serverAddress: this.serverAddress,
+        authToken: this.authToken,
+        sampleRate: 10,
+        tags: {
+          env: process.env.NODE_ENV || "dev",
+          service: this.appName,
+        },
+        labels: {},
+        sourceMap: true,
+      });
 
-    Pyroscope.start();
+      Pyroscope.start();
+
+      this.initialized = true;
+      this.logger.info(`[pyroscope] profiler initialized for ${this.appName}.`);
+    } catch (err) {
+      this.logger.error("[pyroscope] profiler not initialized.", {
+        message: err.message,
+      });
+    }
   }
 
-  middleware(labels) {
+  /***
+   * Pyroscope's express middleware
+   * @param {object} labels labels list { label1: value1, label2: value2 ...}
+   * @example
+   *   app.get("/endpoint", profiler.middleware({ endpoint: "/endpoint" }), (req, res, next) => { ... });
+   */
+  middleware(labels = { endpoint: "default" }) {
     return (req, res, next) => {
       Pyroscope.wrapWithLabels(labels, async () => {
         next();
       });
     };
+  }
+
+  /**
+   * Pyroscope's label helper
+   * @param labels labels list { label1: value1, label2: value2 ...}
+   * @example
+   *   my_function( params ) {
+   *     return await profiler.withLabels({ function: "my_function" }), async () => {
+   *        ....
+   *     });
+   *   }
+   */
+  async withLabels(labels = {}, fn) {
+    if (!this.initialized) {
+      this.logger.warn("[pyroscope] profiler not initialized.");
+      return await fn({ log: this.logger });
+    }
+
+    return await Pyroscope.wrapWithLabels(labels, async () => {
+      try {
+        return await fn();
+      } catch (err) {
+        this.logger.error(`[pyroscope] withLabels(...) error: ${err.message}`, {
+          stack: err.stack,
+        });
+        throw err;
+      }
+    });
   }
 }
 
@@ -54,7 +100,7 @@ export function profiled(labels = {}) {
     const originalMethod = descriptor.value;
 
     descriptor.value = async function (...args) {
-      const profiler = this.profiler; // espera-se que a classe tenha this.profiler = new PyroscopeProfiler(...)
+      const profiler = this.profiler;
       const methodName = propertyKey;
 
       if (!profiler || typeof Pyroscope.wrapWithLabels !== "function") {
@@ -64,7 +110,6 @@ export function profiled(labels = {}) {
         return await originalMethod.apply(this, args);
       }
 
-      // Adiciona automaticamente o nome do método aos labels
       const fullLabels = {
         function: methodName,
         service: profiler.appName,

@@ -5,19 +5,20 @@
   "type": "module",
   "main": "index.js",
   "experimentalDecorators": true,
-   "scripts": {
+  "scripts": {
     "start": "node index.js",
     "dev": "nodemon index.js",
     "lint": "eslint . --ext .js,.mjs"
   },
   "dependencies": {
     "@opentelemetry/api": "^1.9.0",
-    "@opentelemetry/exporter-trace-otlp-http": "^0.207.0",
-    "@opentelemetry/instrumentation-http": "^0.207.0",
-    "@opentelemetry/resources": "^2.2.0",
-    "@opentelemetry/sdk-node": "^0.207.0",
-    "@opentelemetry/semantic-conventions": "^1.37.0",
     "@opentelemetry/auto-instrumentations-node": "^0.66.0",
+    "@opentelemetry/exporter-trace-otlp-http": "^0.207.0",
+    "@opentelemetry/instrumentation": "^0.207.0",
+    "@opentelemetry/resources": "^2.2.0",
+    "@opentelemetry/sdk-trace-base": "^2.2.0",
+    "@opentelemetry/sdk-trace-node": "^2.2.0",
+    "@opentelemetry/semantic-conventions": "^1.37.0",
     "@pyroscope/nodejs": "^0.4.5",
     "express": "^4.19.2",
     "node-fetch": "^3.3.2",

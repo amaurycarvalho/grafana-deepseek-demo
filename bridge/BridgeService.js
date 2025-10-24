@@ -2,10 +2,10 @@ import crypto from "crypto";
 import fs from "fs";
 import fetch from "node-fetch";
 import { Ollama } from "ollama";
-import { TempoTracer } from "./TempoTracer.js";
-import { LokiLogger } from "./LokiLogger.js";
+import { TempoTracer } from "./helpers/TempoTracer.js";
+import { LokiLogger } from "./helpers/LokiLogger.js";
+import { PyroscopeProfiler } from "./helpers/PyroscopeProfiler.js";
 import { BridgeMetrics } from "./BridgeMetrics.js";
-import { PyroscopeProfiler } from "./PyroscopeProfiler.js";
 
 /**
  * Bridge Service
@@ -33,8 +33,9 @@ export class BridgeService {
         options.serviceName || process.env.BRIDGE_SERVICE_NAME || "mcp-bridge",
       systemPromptPath:
         options.systemPromptPath ||
-        process.env.SYSTEM_PROMPT_MDC ||
-        "./system-prompt.mdc",
+        process.env.BRIDGE_SYSTEM_PROMPT_PATH ||
+        "./resources",
+      apiKey: options.apiKey || process.env.BRIDGE_API_KEY,
     };
 
     this.logger = new LokiLogger(this.config.serviceName);
@@ -50,9 +51,7 @@ export class BridgeService {
    */
   async init() {
     try {
-      this.tempo = new TempoTracer(this.config.serviceName, {
-        logger: this.logger,
-      });
+      this.tempo = new TempoTracer(this.config.serviceName);
       await this.tempo.init();
 
       this.systemPrompt = this.loadSystemPrompt();
@@ -76,10 +75,18 @@ export class BridgeService {
    * system prompt loader
    */
   loadSystemPrompt() {
-    this.logger.info("[bridge] loading system prompt", {
-      file: this.config.systemPromptPath,
-    });
-    return fs.readFileSync(this.config.systemPromptPath, "utf-8");
+    try {
+      const fileName = `${this.config.systemPromptPath}/system-prompt.mdc`;
+      this.logger.info("[bridge] loading MCP system prompt", {
+        file: fileName,
+      });
+      return fs.readFileSync(fileName, "utf-8");
+    } catch (err) {
+      this.logger.error("[bridge] failed to load MCP system prompt", {
+        message: err.message,
+      });
+      return "";
+    }
   }
 
   /**

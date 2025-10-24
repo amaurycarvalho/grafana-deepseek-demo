@@ -1,10 +1,11 @@
-import { getNodeAutoInstrumentations } from "@opentelemetry/auto-instrumentations-node";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
-import { NodeSDK } from "@opentelemetry/sdk-node";
-import { HttpInstrumentation } from "@opentelemetry/instrumentation-http";
+import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
+import { SimpleSpanProcessor } from "@opentelemetry/sdk-trace-base";
+import { registerInstrumentations } from "@opentelemetry/instrumentation";
+import { getNodeAutoInstrumentations } from "@opentelemetry/auto-instrumentations-node";
 import { resourceFromAttributes } from "@opentelemetry/resources";
 import { ATTR_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
-import { trace } from "@opentelemetry/api";
+import { trace, diag, DiagLogLevel } from "@opentelemetry/api";
 import { LokiLogger } from "./LokiLogger.js";
 
 /**
@@ -13,10 +14,10 @@ import { LokiLogger } from "./LokiLogger.js";
 export class TempoTracer {
   /**
    * @param {string} serviceName - service name
-   * @param {object} [options] - additional options, ex: { tempoUrl: "http://.../v1/traces", env: "staging" }.
+   * @param {object} [options] - additional options, ex: { apiUrl: "http://.../v1/traces", env: "staging" }.
    * @param {string} [options.env] - environment (dev, staging, prod)
-   * @param {string} [options.tempoUrl] - Tempo URL
-   * @param {LokiLogger} [options.logger] - LokiLogger object
+   * @param {string} [options.apiUrl] - Tempo URL
+   * @param {string} [options.apiKey] - Tempo API key
    */
   constructor(serviceName = "app", options = {}) {
     if (!serviceName) {
@@ -25,15 +26,15 @@ export class TempoTracer {
 
     this.serviceName = serviceName;
     this.options = options;
-    this.sdk = null;
     this.tracer = null;
     this.provider = null;
     this.exporter = null;
     this.resource = null;
 
-    this.tempoUrl = options.tempoUrl || `${process.env.TEMPO_URL}/v1/traces`;
+    this.apiUrl = `${options.apiUrl || process.env.TEMPO_API_URL}/v1/traces`;
+    this.apiKey = options.apiKey || process.env.TEMPO_API_KEY || "";
     this.env = options.env || process.env.NODE_ENV || "dev";
-    this.logger = options.logger || new LokiLogger(serviceName);
+    this.logger = new LokiLogger(`tempo-${serviceName}`);
   }
 
   /**
@@ -42,26 +43,60 @@ export class TempoTracer {
   async init() {
     const ATTR_DEPLOYMENT_ENVIRONMENT = "deployment.environment.name";
 
+    diag.setLogger(
+      {
+        debug: (msg, ...args) =>
+          this.logger.debug(`[tempo.otel] ${msg}`, ...args),
+        info: (msg, ...args) =>
+          this.logger.info(`[tempo.otel] ${msg}`, ...args),
+        warn: (msg, ...args) =>
+          this.logger.warn(`[tempo.otel] ${msg}`, ...args),
+        error: (msg, ...args) =>
+          this.logger.error(`[tempo.otel] ${msg}`, ...args),
+      },
+      DiagLogLevel.INFO // DEBUG, INFO, WARN, ERROR
+    );
+
     // ----- OpenTelemetry / Tempo -----
-    this.exporter = new OTLPTraceExporter({ url: this.tempoUrl });
+    try {
+      this.exporter = new OTLPTraceExporter({
+        url: this.apiUrl,
+        headers: {
+          "x-api-key": this.apiKey,
+        },
+      });
+      this.logger.info(`[tempo] OTLP exporter created for ${this.apiUrl}`);
+    } catch (err) {
+      this.logger.error(
+        `[tempo] failed to create OTLP exporter: ${err.message}`
+      );
+      return;
+    }
 
     this.resource = resourceFromAttributes({
       [ATTR_SERVICE_NAME]: this.serviceName,
       [ATTR_DEPLOYMENT_ENVIRONMENT]: this.env,
     });
 
-    this.sdk = new NodeSDK({
-      traceExporter: this.exporter,
+    this.provider = new NodeTracerProvider({
       resource: this.resource,
+      spanProcessors: [new SimpleSpanProcessor(this.exporter)],
+    });
+    this.provider.register();
+
+    registerInstrumentations({
       instrumentations: [
-        new HttpInstrumentation(),
         getNodeAutoInstrumentations({
+          "@opentelemetry/instrumentation-http": {
+            applyCustomAttributesOnSpan: (span) => {
+              span.setAttribute("otel.instrumented", true);
+            },
+          },
           "@opentelemetry/instrumentation-fs": { enabled: false },
         }),
       ],
     });
 
-    await this.sdk.start();
     this.tracer = trace.getTracer(this.serviceName);
 
     this.logger.info(
@@ -74,13 +109,23 @@ export class TempoTracer {
   }
 
   /**
-   * Method manual span helper
+   * tracer shutdown
+   */
+  async shutdown() {
+    if (this.provider) {
+      await this.provider.shutdown();
+      console.log(`[tempo] tracing terminated for ${this.serviceName}`);
+    }
+  }
+
+  /**
+   * Tempo's span helper
    * @param {string} name span name
    * @param {object} attributes additional attributes
    * @param {Function} fn function to be executed.
    * @example
-   *   my_method( params ) {
-   *     return await this.tempo.withSpan("my_method", { params }, async () => {
+   *   my_function( params ) {
+   *     return await tempo.withSpan("my_function", { params }, async () => {
    *        ....
    *     });
    *   }
@@ -94,7 +139,11 @@ export class TempoTracer {
     return await this.tracer.startActiveSpan(name, async (span) => {
       try {
         for (const [key, value] of Object.entries(attributes)) {
-          span.setAttribute(key, value);
+          let safeValue = value;
+          if (typeof value === "object" && value !== null) {
+            safeValue = JSON.stringify(value);
+          }
+          span.setAttribute(key, safeValue);
         }
 
         const ctx = {
@@ -126,16 +175,6 @@ export class TempoTracer {
         span.end();
       }
     });
-  }
-
-  /**
-   * tracer shutdown
-   */
-  async shutdown() {
-    if (this.sdk) {
-      await this.sdk.shutdown();
-      console.log(`[tempo] tracing terminated for ${this.serviceName}`);
-    }
   }
 }
 

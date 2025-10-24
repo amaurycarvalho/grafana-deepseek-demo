@@ -88,6 +88,8 @@ services:
       - PYROSCOPE_STORAGE_PATH=/var/lib/pyroscope
     volumes:
       - pyroscope_data:/var/lib/pyroscope
+    depends_on:
+      - loki
 
   tempo:
     image: grafana/tempo:latest
@@ -100,6 +102,8 @@ services:
     volumes:
       - ./tempo/tempo-config.yaml:/etc/tempo/tempo-config.yaml
       - tempo_data:/tmp/tempo
+    depends_on:
+      - loki
 
   bridge:
     build: ./bridge
@@ -108,13 +112,18 @@ services:
       - OLLAMA_HOST=${OLLAMA_HOST}
       - LLM_MODEL=${LLM_MODEL}
       - MCP_URL=${MCP_URL}
+      - MCP_API_KEY=${MCP_API_KEY}
       - BRIDGE_MODE=${BRIDGE_MODE}
       - BRIDGE_SERVICE_NAME=${BRIDGE_SERVICE_NAME}
       - BRIDGE_METRICS_PREFIX_NAME=${BRIDGE_METRICS_PREFIX_NAME}
+      - BRIDGE_SYSTEM_PROMPT_PATH=${BRIDGE_SYSTEM_PROMPT_PATH}
+      - BRIDGE_API_KEY=${BRIDGE_API_KEY}
       - LOKI_URL=${LOKI_URL}
       - PYROSCOPE_URL=${PYROSCOPE_URL}
       - PYROSCOPE_AUTH_TOKEN=${PYROSCOPE_AUTH_TOKEN}
       - TEMPO_URL=${TEMPO_URL}
+      - TEMPO_API_URL=${TEMPO_API_URL}
+      - TEMPO_API_KEY=${TEMPO_API_KEY}
       - SYSTEM_PROMPT_MDC=./system-prompt.mdc
     ports:
       - "3001:3001"
