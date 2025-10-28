@@ -23,38 +23,48 @@ You can easily run this setup locally with Docker and adapt it to your own envir
 
 ### ⚡ Quick start
 
+#### ⚙️ Bridge configuration
+
+1. Create a `.env` file in the project root (see `.env.example`);
+2. Choose your preferred model for `OLLAMA_DEFAULT_MODEL` environment variable.
+
 #### 🧱 Build containers
-   ```
-   sudo docker-compose build
-   ```
+
+```
+sudo docker-compose build
+```
 
 #### ▶️ Start the stack
-   ```
-   sudo docker-compose up -d
-   ```
+
+```
+sudo docker-compose up -d
+```
 
 #### 🛑 Stopping the stack
-   ```
-   sudo docker-compose down
-   ```
+
+```
+sudo docker-compose down
+```
 
 ---
 
 ### 👉 Grafana basic integration
 
 #### 🖥️ Access Grafana
-   ```
-   http://localhost:3000 (admin/admin)
-   ```
+
+```
+http://localhost:3000 (admin/admin)
+```
 
 #### ⚙️ LLM plugin setup
+
 1. Open Grafana's plugins list:  
    Navigate to `Grafana > Administration > Plugins and data > Plugins` or go directly to `http://localhost:3000/plugins`.
 2. Search for LLM plugin;
 3. Configure it as follows:  
   Select `Use a Custom API` option  
   Provider: `OpenAI`  
-  API URL: `http://mcp-bridge:3001`
+  API URL: `http://llm-bridge:3001`
 4. Click on `Save & test` and wait for the health check to complete.
 
 ### 🧪 Testing
@@ -69,29 +79,27 @@ You can easily run this setup locally with Docker and adapt it to your own envir
 ### 👉 VSCode partial MCP integration
 
 #### Setting Up the Local Assistant in VSCode with Continue
-1. Install the extension:  
-   Install and enable the [Continue - open-source AI code agent](https://continue.dev/) extension in VSCode;
-2. Open *Continue* panel:  
-   Click on the *Continue* icon in the left-hand toolbar.
-3. Access settings:  
-   In the Continue *Chat* tab, click the *Open Settings* icon.
-4. Configure models:  
-   Select the *Models* option and click the *Configure* icon in the *Chat* section.
-5. Update configuration:  
-   Add the following to your `.continue/config.yaml` file and save it:
 
-    ```
-    name: Local Assistant
-    version: 1.0.0
-    schema: v1
-    models:
-      - name: Deepseek Proxy Chat
-        provider: openai
-        model: deepseek-r1:1.5b
-        apiBase: http://localhost:3001/v1
-        roles:
-          - chat
-    ```
+1. Install and enable the [Continue - open-source AI code agent](https://continue.dev/) extension in VSCode;
+2. Click on the *Continue* icon in the left-hand toolbar;
+3. In the Continue *Chat* tab, click the *Open Settings* icon (⚙️);
+4. Select the *Configs* paper icon in the left-hand new toolbar and click the *Local Config* icon (⚙️);
+5. Add the following to your `.continue/config.yaml` file and save it.
+
+```
+name: Local Assistant
+version: 1.0.0
+schema: v1
+models:
+  - name: Deepseek Proxy Chat
+    provider: openai
+    model: deepseek-r1:1.5b
+    apiBase: http://localhost:3001/v1
+    roles:
+      - chat
+      - edit
+      - apply
+```
 
 #### Testing
 
@@ -107,10 +115,11 @@ Inside VSCode, try prompts like:
 
 And, still experimentally:
 
-- “#mcp:grafana:tools”
+- “#mcp:grafana Show grafana version"
 - “#mcp:grafana Show all dashboards names.”
 - “#mcp:grafana Show all metrics names.”
 - “#mcp:grafana Show the CPU metrics.”
+- “#mcp:grafana Show tools list”
 
 
 ## 🧑‍💻 Developer Guide
@@ -124,7 +133,7 @@ And, still experimentally:
 | Loki | Logs | http://localhost:3100 |
 | Pyroscope | Profiler | http://localhost:4040 |
 | node_exporter | Exposes host CPU/memory | http://localhost:9100 |
-| [mcp-grafana](https://github.com/grafana/mcp-grafana) | MCP server | http://localhost:8765/mcp | 
+| [mcp-grafana](https://github.com/grafana/mcp-grafana) | MCP server | http://localhost:8000/mcp | 
 | Ollama | LLM (Deepseek) | http://localhost:11434 |
 | Bridge | OpenAI-like proxy | http://localhost:3001/v1 |
 
@@ -133,55 +142,62 @@ And, still experimentally:
 ### 🪵 Logs
 
 #### Grafana Logs
-   Open Grafana > Drilldown > Logs
+
+Open Grafana > Drilldown > Logs
 
 #### Container logs
-   ```
-   sudo docker-compose logs | grep 'bridge[[:space:]]*|'
-   ```
+
+```
+sudo docker-compose logs | grep 'bridge[[:space:]]*|'
+```
 
 ---
 
 ### 🧠 LLM Bridge Manual Tests
 
 #### Health check
-   ```
-   curl -X GET http://localhost:3001/health
-   ```
+
+```
+curl -X GET http://localhost:3001/health
+```
 
 #### Simple chat test
-   ```
-   curl -X POST http://localhost:3001/v1/chat/completions -H "Content-Type: application/json" -d '{"messages": [{"role":"user","content":"Hello"}]}'
-   ```
+
+```
+curl -X POST http://localhost:3001/v1/chat/completions -H "Content-Type: application/json" -d '{"messages": [{"role":"user","content":"Hello"}]}'
+```
 
 #### Example MCP query
-   ```
-   curl -X POST http://localhost:3001/v1/chat/completions -H "Content-Type: application/json" -d '{"messages":[{"role":"user","content":"#mcp:grafana Show all dashboards names."}]}'
-   ```
+
+```
+curl -X POST http://localhost:3001/v1/chat/completions -H "Content-Type: application/json" -d '{"messages":[{"role":"user","content":"#mcp:grafana Show all dashboards names."}]}'
+```
 
 ---
 
 ### ⚙️ Operations
 
 #### Restart all containers
-   ```
-   sudo docker-compose restart
-   ```
+
+```
+sudo docker-compose restart
+```
 
 #### Downloading and testing Deepseek model:
-   ```
-   sudo docker exec -it ollama sh
-     ollama pull deepseek-r1:1.5b
-     ollama list
-     ollama run deepseek-r1:1.5b "Hello"
-     exit
-   ```
+
+```
+sudo docker exec -it ollama sh
+ollama pull deepseek-r1:1.5b
+ollama list
+ollama run deepseek-r1:1.5b "Hello"
+exit
+```
 
 #### Open Grafana container shell
 
-   ```
-   sudo docker exec -it grafana sh
-   ```
+```
+sudo docker exec -it grafana sh
+```
 
 ---
 
@@ -189,12 +205,12 @@ And, still experimentally:
 
 #### Bridge configurations
 
-- *Changing the LLM model*: edit `.env` file and change the `LLM_MODEL` environment variable.
+- *Changing the LLM model*: edit `.env` file and change the `OLLAMA_DEFAULT_MODEL` environment variable;
 - *LLM or TEST mode*: edit `.env` file and change the `BRIDGE_MODE` environment variable.
 
 #### Grafana configurations
 
-- *Default user/password*: edit `./grafana/grafana.ini` file and search for `security' section.
+- *Default user/password*: edit `./grafana/grafana.ini` file and search for `security' section;
 - *Connections url (prometheus, loki, pyroscope and tempo)*: edit `./grafana/provisioning/datasources/datasources.yml` and `./.env` files.
 
 #### Extending LLM MCP capabilities:
@@ -218,6 +234,7 @@ Edit `./bridge/system-prompt.mdc` file (plain text) adding new MCP server method
 - [Campfire MCP Demo](https://github.com/grafana/campfire-mcp-demo) for more details about Grafana MCP integration.
 
 ### 🔗 MCP and OpenAI
+- [Ollama MCP streaming tool](https://ollama.com/blog/streaming-tool);
 - [MCP reference guide](https://modelcontextprotocol.io/specification/2025-06-18/basic);
 - [MCP JSON-RPC Reference Guide](https://portkey.ai/blog/mcp-message-types-complete-json-rpc-reference-guide/)
 - [OpenAI API guide](https://platform.openai.com/docs/guides/text) and [chat completion object reference](https://platform.openai.com/docs/api-reference/chat/get).

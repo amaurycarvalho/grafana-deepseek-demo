@@ -1,5 +1,5 @@
 {
-  "name": "mcp-bridge",
+  "name": "llm-bridge",
   "version": "1.3.0",
   "description": "Ollama (LLM) and MCP Server bridge to Grafana integration via OpenAI-compatible API.",
   "type": "module",

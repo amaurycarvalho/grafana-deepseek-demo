@@ -14,7 +14,7 @@ scrape_configs:
     static_configs:
       - targets: ["node-exporter:9100"]
 
-  - job_name: "mcp-bridge"
+  - job_name: "bridge"
     static_configs:
       - targets: ["bridge:3001"]
 

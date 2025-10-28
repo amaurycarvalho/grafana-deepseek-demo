@@ -734,8 +734,8 @@
     "list": [
       {
         "current": {
-          "text": "mcp-bridge",
-          "value": "mcp-bridge"
+          "text": "llm-bridge",
+          "value": "llm-bridge"
         },
         "datasource": "Prometheus",
         "label": "Job",
@@ -753,6 +753,6 @@
   "timepicker": {},
   "timezone": "browser",
   "title": "MCP Bridge Observability",
-  "uid": "mcp-bridge-dashboard",
+  "uid": "llm-bridge-dashboard",
   "version": 1
 }

@@ -1,11 +1,66 @@
 version: "3.9"
 
 services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    networks:
+      - internal
+    expose:
+      - 11434
+    volumes:
+      - ollama_data:/root/.ollama
+    restart: unless-stopped
+    command: serve
+
+  ollama-check:
+    image: alpine/curl:latest
+    container_name: ollama-check
+    networks:
+      - internal
+    entrypoint: ["/bin/sh", "-c"]
+    command: >
+      "
+      sleep 60 && 
+      exit 0
+      "
+    depends_on:
+      ollama:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "http://ollama:11434/api/tags"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: "no"
+
+  ollama-init:
+    image: ollama/ollama:latest
+    container_name: ollama-init
+    networks:
+      - internal
+    environment:
+      - OLLAMA_HOST=${OLLAMA_HOST}
+      - OLLAMA_DEFAULT_MODEL=${OLLAMA_DEFAULT_MODEL}
+    entrypoint: ["/bin/sh", "-c"]
+    command: >
+      "echo 'Downloading Ollama default models...' &&
+       ollama pull ${OLLAMA_DEFAULT_MODEL} || true &&
+       echo 'Ollama models downloaded' &&
+       exit 0"
+    volumes:
+      - ollama_data:/root/.ollama
+    depends_on:
+      ollama-check:
+        condition: service_healthy
+
   prometheus:
     image: prom/prometheus:latest
     container_name: prometheus
-    ports:
-      - "9090:9090"
+    networks:
+      - internal
+    expose:
+      - 9090
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
     depends_on:
@@ -14,16 +69,20 @@ services:
 
   blackbox-exporter:
     image: prom/blackbox-exporter
-    ports:
-      - "9115:9115"
+    networks:
+      - internal
+    expose:
+      - 9115
 
   node-exporter:
     image: prom/node-exporter:latest
     container_name: node-exporter
+    networks:
+      - internal
     pid: "host"
     restart: unless-stopped
-    ports:
-      - "9100:9100"
+    expose:
+      - 9100
     command:
       - --path.procfs=/host/proc
       - --path.sysfs=/host/sys
@@ -32,49 +91,14 @@ services:
       - /sys:/host/sys:ro
       - /:/rootfs:ro
 
-  mcp-grafana:
-    image: mcp/grafana:latest
-    container_name: mcp-grafana
-    command: ["-t", "streamable-http"]
-    environment:
-      - GRAFANA_URL=${GRAFANA_URL}
-    #  - GRAFANA_SERVICE_ACCOUNT_TOKEN=${GRAFANA_API_KEY}
-    ports:
-      - "8765:8000"
-    depends_on:
-      - grafana
-
-  ollama:
-    image: ollama/ollama:latest
-    container_name: ollama
-    ports:
-      - "11434:11434"
-    volumes:
-      - ollama_data:/root/.ollama
-    restart: unless-stopped
-    command: serve
-
-  ollama-init:
-    image: ollama/ollama:latest
-    container_name: ollama-init
-    depends_on:
-      - ollama
-    environment:
-      - LLM_MODEL=${LLM_MODEL}
-    entrypoint: ["/bin/sh", "-c"]
-    command: >
-      "sleep 5 &&
-       ollama pull ${LLM_MODEL} || true &&
-       exit 0"
-    volumes:
-      - ollama_data:/root/.ollama
-
   loki:
     image: grafana/loki:latest
     container_name: loki
     restart: unless-stopped
-    ports:
-      - "3100:3100"
+    networks:
+      - internal
+    expose:
+      - 3100
     command: -config.file=/etc/loki/loki-config.yaml
     volumes:
       - ./loki/loki-config.yaml:/etc/loki/loki-config.yaml:ro
@@ -82,62 +106,41 @@ services:
 
   pyroscope:
     image: grafana/pyroscope:latest
-    ports:
-      - "4040:4040"
+    networks:
+      - internal
+    expose:
+      - 4040
     environment:
       - PYROSCOPE_STORAGE_PATH=/var/lib/pyroscope
     volumes:
       - pyroscope_data:/var/lib/pyroscope
     depends_on:
-      - loki
+      loki:
+        condition: service_started
 
   tempo:
     image: grafana/tempo:latest
     container_name: tempo
-    ports:
-      - "3200:3200"
-      - "4317:4317" # OTLP gRPC receiver
-      - "4318:4318" # OTLP HTTP receiver
+    networks:
+      - internal
+    expose:
+      - 3200
+      - 4317 # OTLP gRPC receiver
+      - 4318 # OTLP HTTP receiver
     command: ["-config.file=/etc/tempo/tempo-config.yaml"]
     volumes:
       - ./tempo/tempo-config.yaml:/etc/tempo/tempo-config.yaml
       - tempo_data:/tmp/tempo
     depends_on:
-      - loki
-
-  bridge:
-    build: ./bridge
-    container_name: mcp-bridge
-    environment:
-      - OLLAMA_HOST=${OLLAMA_HOST}
-      - LLM_MODEL=${LLM_MODEL}
-      - MCP_URL=${MCP_URL}
-      - MCP_API_KEY=${MCP_API_KEY}
-      - BRIDGE_MODE=${BRIDGE_MODE}
-      - BRIDGE_SERVICE_NAME=${BRIDGE_SERVICE_NAME}
-      - BRIDGE_METRICS_PREFIX_NAME=${BRIDGE_METRICS_PREFIX_NAME}
-      - BRIDGE_SYSTEM_PROMPT_PATH=${BRIDGE_SYSTEM_PROMPT_PATH}
-      - BRIDGE_API_KEY=${BRIDGE_API_KEY}
-      - LOKI_URL=${LOKI_URL}
-      - PYROSCOPE_URL=${PYROSCOPE_URL}
-      - PYROSCOPE_AUTH_TOKEN=${PYROSCOPE_AUTH_TOKEN}
-      - TEMPO_URL=${TEMPO_URL}
-      - TEMPO_API_URL=${TEMPO_API_URL}
-      - TEMPO_API_KEY=${TEMPO_API_KEY}
-      - SYSTEM_PROMPT_MDC=./system-prompt.mdc
-    ports:
-      - "3001:3001"
-    depends_on:
-      - ollama
-      - mcp-grafana
-      - loki
-      - tempo
-      - pyroscope
-    restart: unless-stopped
+      loki:
+        condition: service_started
 
   grafana:
     image: grafana/grafana-oss:latest
     container_name: grafana
+    networks:
+      - internal
+      - public
     user: "472"
     environment:
       - GF_INSTALL_PLUGINS=grafana-llm-app 0.22.8 # there's a bug on the 0.22.9
@@ -148,13 +151,70 @@ services:
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
       - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
     depends_on:
-      - prometheus
-      - loki
-      - pyroscope
-      - tempo
+      loki:
+        condition: service_started
+      prometheus:
+        condition: service_started
+      pyroscope:
+        condition: service_started
+      tempo:
+        condition: service_started
+
+  mcp-grafana:
+    image: mcp/grafana:latest
+    container_name: mcp-grafana
+    networks:
+      - internal
+    command: ["-t", "streamable-http"]
+    environment:
+      - GRAFANA_URL=${GRAFANA_URL}
+    #  - GRAFANA_SERVICE_ACCOUNT_TOKEN=${GRAFANA_API_KEY}
+    expose:
+      - 8000
+    depends_on:
+      grafana:
+        condition: service_started
+
+  bridge:
+    build: ./bridge
+    container_name: llm-bridge
+    networks:
+      - internal
+      - public
+    environment:
+      - OLLAMA_HOST=${OLLAMA_HOST}
+      - OLLAMA_DEFAULT_MODEL=${OLLAMA_DEFAULT_MODEL}
+      - LOKI_URL=${LOKI_URL}
+      - PYROSCOPE_URL=${PYROSCOPE_URL}
+      - PYROSCOPE_AUTH_TOKEN=${PYROSCOPE_AUTH_TOKEN}
+      - TEMPO_URL=${TEMPO_URL}
+      - TEMPO_API_URL=${TEMPO_API_URL}
+      - TEMPO_API_KEY=${TEMPO_API_KEY}
+      - MCP_URL=${MCP_URL}
+      - MCP_API_KEY=${MCP_API_KEY}
+      - BRIDGE_MODE=${BRIDGE_MODE}
+      - BRIDGE_SERVICE_NAME=${BRIDGE_SERVICE_NAME}
+      - BRIDGE_METRICS_PREFIX_NAME=${BRIDGE_METRICS_PREFIX_NAME}
+      - BRIDGE_SYSTEM_PROMPT_PATH=${BRIDGE_SYSTEM_PROMPT_PATH}
+      - BRIDGE_API_KEY=${BRIDGE_API_KEY}
+      - BRIDGE_LOG_LEVEL=${BRIDGE_LOG_LEVEL}
+    ports:
+      - "3001:3001"
+    depends_on:
+      ollama-init:
+        condition: service_completed_successfully
+      mcp-grafana:
+        condition: service_started
+    restart: unless-stopped
 
 volumes:
   ollama_data:
   loki_data:
   tempo_data:
   pyroscope_data:
+
+networks:
+  internal:
+    driver: bridge
+  public:
+    driver: bridge
