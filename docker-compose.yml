@@ -97,8 +97,10 @@ services:
     restart: unless-stopped
     networks:
       - internal
+    user: "10001"
     expose:
       - 3100
+      - 9095
     command: -config.file=/etc/loki/loki-config.yaml
     volumes:
       - ./loki/loki-config.yaml:/etc/loki/loki-config.yaml:ro
@@ -192,12 +194,10 @@ services:
       - TEMPO_API_KEY=${TEMPO_API_KEY}
       - MCP_URL=${MCP_URL}
       - MCP_API_KEY=${MCP_API_KEY}
-      - BRIDGE_MODE=${BRIDGE_MODE}
-      - BRIDGE_SERVICE_NAME=${BRIDGE_SERVICE_NAME}
-      - BRIDGE_METRICS_PREFIX_NAME=${BRIDGE_METRICS_PREFIX_NAME}
-      - BRIDGE_SYSTEM_PROMPT_PATH=${BRIDGE_SYSTEM_PROMPT_PATH}
-      - BRIDGE_API_KEY=${BRIDGE_API_KEY}
-      - BRIDGE_LOG_LEVEL=${BRIDGE_LOG_LEVEL}
+      - LLM_BRIDGE_SERVICE_NAME=${LLM_BRIDGE_SERVICE_NAME}
+      - LLM_BRIDGE_METRICS_PREFIX_NAME=${LLM_BRIDGE_METRICS_PREFIX_NAME}
+      - LLM_BRIDGE_API_KEY=${LLM_BRIDGE_API_KEY}
+      - LLM_BRIDGE_LOG_LEVEL=${LLM_BRIDGE_LOG_LEVEL}
     ports:
       - "3001:3001"
     depends_on:

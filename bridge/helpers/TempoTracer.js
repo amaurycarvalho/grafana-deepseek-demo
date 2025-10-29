@@ -1,11 +1,4 @@
-import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
-import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
-import { SimpleSpanProcessor } from "@opentelemetry/sdk-trace-base";
-import { registerInstrumentations } from "@opentelemetry/instrumentation";
-import { getNodeAutoInstrumentations } from "@opentelemetry/auto-instrumentations-node";
-import { resourceFromAttributes } from "@opentelemetry/resources";
-import { ATTR_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
-import { trace, diag, DiagLogLevel } from "@opentelemetry/api";
+import otel from "./OtelHelper.js";
 import { LokiLogger } from "./LokiLogger.js";
 
 /**
@@ -25,6 +18,12 @@ export class TempoTracer {
     }
 
     this.serviceName = serviceName;
+    this.env = options.env || process.env.NODE_ENV || "dev";
+    this.region =
+      process.env.AWS_REGION ||
+      process.env.AZURE_LOCATION ||
+      process.env.NODE_REGION ||
+      "local";
     this.options = options;
     this.tracer = null;
     this.provider = null;
@@ -33,7 +32,6 @@ export class TempoTracer {
 
     this.apiUrl = `${options.apiUrl || process.env.TEMPO_API_URL}/v1/traces`;
     this.apiKey = options.apiKey || process.env.TEMPO_API_KEY || "";
-    this.env = options.env || process.env.NODE_ENV || "dev";
     this.logger = new LokiLogger(`tempo-${serviceName}`);
   }
 
@@ -41,9 +39,7 @@ export class TempoTracer {
    * Tracer initialization
    */
   async init() {
-    const ATTR_DEPLOYMENT_ENVIRONMENT = "deployment.environment.name";
-
-    diag.setLogger(
+    otel.diag.setLogger(
       {
         debug: (msg, ...args) =>
           this.logger.debug(`[tempo.otel] ${msg}`, ...args),
@@ -54,12 +50,12 @@ export class TempoTracer {
         error: (msg, ...args) =>
           this.logger.error(`[tempo.otel] ${msg}`, ...args),
       },
-      DiagLogLevel.INFO // DEBUG, INFO, WARN, ERROR
+      otel.DiagLogLevel.INFO // DEBUG, INFO, WARN, ERROR
     );
 
     // ----- OpenTelemetry / Tempo -----
     try {
-      this.exporter = new OTLPTraceExporter({
+      this.exporter = new otel.OTLPTraceExporter({
         url: this.apiUrl,
         headers: {
           "x-api-key": this.apiKey,
@@ -73,20 +69,21 @@ export class TempoTracer {
       return;
     }
 
-    this.resource = resourceFromAttributes({
-      [ATTR_SERVICE_NAME]: this.serviceName,
-      [ATTR_DEPLOYMENT_ENVIRONMENT]: this.env,
+    this.resource = otel.resourceFromAttributes({
+      [otel.ATTR_SERVICE_NAME]: this.serviceName,
+      [otel.ATTR_DEPLOYMENT_ENVIRONMENT]: this.env,
+      [otel.ATTR_REGION]: this.region,
     });
 
-    this.provider = new NodeTracerProvider({
+    this.provider = new otel.NodeTracerProvider({
       resource: this.resource,
-      spanProcessors: [new SimpleSpanProcessor(this.exporter)],
+      spanProcessors: [new otel.SimpleSpanProcessor(this.exporter)],
     });
     this.provider.register();
 
-    registerInstrumentations({
+    otel.registerInstrumentations({
       instrumentations: [
-        getNodeAutoInstrumentations({
+        otel.getNodeAutoInstrumentations({
           "@opentelemetry/instrumentation-http": {
             applyCustomAttributesOnSpan: (span) => {
               span.setAttribute("otel.instrumented", true);
@@ -97,7 +94,7 @@ export class TempoTracer {
       ],
     });
 
-    this.tracer = trace.getTracer(this.serviceName);
+    this.tracer = otel.trace.getTracer(this.serviceName);
 
     this.logger.info(
       `[tempo] tracing initialized for ${this.serviceName} (${this.env})`

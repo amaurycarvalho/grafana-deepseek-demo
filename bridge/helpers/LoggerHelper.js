@@ -20,6 +20,11 @@ export class LoggerHelper {
 
     this.serviceName = serviceName;
     this.env = options.env || process.env.NODE_ENV || "dev";
+    this.region =
+      process.env.AWS_REGION ||
+      process.env.AZURE_LOCATION ||
+      process.env.NODE_REGION ||
+      "local";
     this.lokiUrl = options.lokiUrl || process.env.LOKI_URL || "";
     this.level = options.level || process.env.LOG_LEVEL || "info";
     this.consoleEnabled = options.console ?? true;
@@ -31,8 +36,9 @@ export class LoggerHelper {
         new LokiTransport({
           host: this.lokiUrl,
           labels: {
-            app: this.serviceName,
+            service_name: this.serviceName,
             env: this.env,
+            region: this.region,
           },
           json: true,
           replaceTimestamp: true,

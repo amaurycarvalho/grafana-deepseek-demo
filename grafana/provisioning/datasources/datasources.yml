@@ -22,12 +22,34 @@ datasources:
     jsonData:
       serviceMap:
         datasourceUid: "Prometheus"
-      tracesToLogs:
+      tracesToLogsV2:
         datasourceUid: "Loki"
-        mappedTags: [{ key: "service.name", value: "app" }]
+        spanStartTimeShift: "-1h"
+        spanEndTimeShift: "1h"
+        tags:
+          - key: "service.name"
+            value: "service_name"
+        #customQuery: true
+        #query: 'service_name="$${__resource.service.name}"'
+        #query: 'method="$${__span.tags.method}"'
       tracesToMetrics:
         datasourceUid: "Prometheus"
+        spanStartTimeShift: "-1h"
+        spanEndTimeShift: "1h"
+        tags:
+          - key: "service.name"
+            value: "service_name"
+        queries:
+          - name: "Sample query"
+            query: "sum(rate(traces_spanmetrics_latency_bucket{$$__tags}[5m]))"
       tracesToProfiles:
         datasourceUid: "Pyroscope"
+        tags:
+          - key: "service.name"
+            value: "service_name"
+        profileTypeId: "process_cpu:cpu:nanoseconds:cpu:nanoseconds"
+        customQuery: true
+        query: 'service_name="$${__resource.service.name}"'
+        #query: 'method="$${__span.tags.method}"'
       nodeGraph:
         enabled: true

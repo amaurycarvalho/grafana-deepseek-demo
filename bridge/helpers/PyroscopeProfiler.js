@@ -1,4 +1,5 @@
 import Pyroscope from "@pyroscope/nodejs";
+import otel from "./OtelHelper.js";
 import { LokiLogger } from "./LokiLogger.js";
 
 export class PyroscopeProfiler {
@@ -10,6 +11,12 @@ export class PyroscopeProfiler {
     this.appName = appName;
     this.serverAddress = serverAddress;
     this.authToken = authToken;
+    this.env = process.env.NODE_ENV || "dev";
+    this.region =
+      process.env.AWS_REGION ||
+      process.env.AZURE_LOCATION ||
+      process.env.NODE_REGION ||
+      "local";
     this.initialized = false;
     this.logger = new LokiLogger(`pyroscope-${appName}`);
 
@@ -24,10 +31,10 @@ export class PyroscopeProfiler {
         authToken: this.authToken,
         sampleRate: 10,
         tags: {
-          env: process.env.NODE_ENV || "dev",
-          service: this.appName,
+          [otel.ATTR_SERVICE_NAME]: this.appName,
+          [otel.ATTR_DEPLOYMENT_ENVIRONMENT]: this.env,
+          [otel.ATTR_REGION]: this.region,
         },
-        labels: {},
         sourceMap: true,
       });
 

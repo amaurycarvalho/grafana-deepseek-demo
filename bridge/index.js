@@ -7,6 +7,7 @@ app.use(express.json());
 app.post(
   "/v1/chat/completions",
   bridge.profiler.middleware({ endpoint: "/v1/chat/completions" }),
+  bridge.authMiddleware,
   (req, res) => bridge.handleChat(req, res)
 );
 

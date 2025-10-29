@@ -2,20 +2,33 @@ auth_enabled: false
 
 server:
   http_listen_port: 3100
+  grpc_listen_port: 9095
+
+common:
+  path_prefix: /loki
+  storage:
+    filesystem:
+      chunks_directory: /loki/chunks
+      rules_directory: /loki/rules
+  replication_factor: 1
+  ring:
+    kvstore:
+      store: inmemory
 
 # ---------------------------------
 # INGESTER
 # ---------------------------------
 ingester:
-  lifecycler:
-    ring:
-      kvstore:
-        store: inmemory
-      replication_factor: 1
+  #  lifecycler:
+  #    ring:
+  #      kvstore:
+  #        store: inmemory
+  #      replication_factor: 1
   chunk_idle_period: 5m
   max_chunk_age: 1h
   chunk_target_size: 1048576
   wal:
+    enabled: true
     dir: /loki/wal
 
 # ---------------------------------
@@ -69,3 +82,4 @@ table_manager:
 # ---------------------------------
 compactor:
   working_directory: /loki/compactor
+  retention_enabled: false

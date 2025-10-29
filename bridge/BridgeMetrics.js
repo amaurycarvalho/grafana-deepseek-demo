@@ -6,7 +6,7 @@ import { PrometheusMetrics } from "./helpers/PrometheusMetrics.js";
  */
 export class BridgeMetrics extends PrometheusMetrics {
   constructor(
-    metricsPrefixName = process.env.BRIDGE_METRICS_PREFIX_NAME || "bridge"
+    metricsPrefixName = process.env.LLM_BRIDGE_METRICS_PREFIX_NAME || "bridge"
   ) {
     super(metricsPrefixName);
     this.initBridgeMetrics();

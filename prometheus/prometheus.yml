@@ -16,7 +16,7 @@ scrape_configs:
 
   - job_name: "bridge"
     static_configs:
-      - targets: ["bridge:3001"]
+      - targets: ["llm-bridge:3001"]
 
   - job_name: "bridge-health"
     metrics_path: /probe
@@ -24,11 +24,11 @@ scrape_configs:
       module: [http_2xx] # Espera HTTP 200
     static_configs:
       - targets:
-          - http://bridge:3001/health
+          - http://llm-bridge:3001/health
     relabel_configs:
       - source_labels: [__address__]
         target_label: __param_target
       - target_label: instance
-        replacement: bridge
+        replacement: llm-bridge
       - target_label: __address__
         replacement: blackbox-exporter:9115

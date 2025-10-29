@@ -1,4 +1,3 @@
-import fs from "fs";
 import { TempoTracer } from "./helpers/TempoTracer.js";
 import { LokiLogger } from "./helpers/LokiLogger.js";
 import { PyroscopeProfiler } from "./helpers/PyroscopeProfiler.js";
@@ -14,32 +13,26 @@ export class BridgeService {
   /**
    * @param {object} options
    * @param {string} [options.serviceName] - service name
-   * @param {string} [options.mode] - operation mode ("LLM" or "TEST")
-   * @param {string} [options.systemPromptPath] - system prompt path (.mdc)
    * @param {string} [options.apiKey] - system prompt path (.mdc)
    */
   constructor(options = {}) {
     this.config = {
-      mode: options.mode || process.env.BRIDGE_MODE || "LLM",
       serviceName:
-        options.serviceName || process.env.BRIDGE_SERVICE_NAME || "llm-bridge",
-      systemPromptPath:
-        options.systemPromptPath ||
-        process.env.BRIDGE_SYSTEM_PROMPT_PATH ||
-        "./resources",
-      apiKey: options.apiKey || process.env.BRIDGE_API_KEY,
+        options.serviceName ||
+        process.env.LLM_BRIDGE_SERVICE_NAME ||
+        "llm-bridge",
+      apiKey: options.apiKey || process.env.LLM_BRIDGE_API_KEY,
     };
 
     this.logger = new LokiLogger(this.config.serviceName, {
-      level: process.env.BRIDGE_LOG_LEVEL,
+      level: process.env.LLM_BRIDGE_LOG_LEVEL,
     });
     this.metrics = new BridgeMetrics();
     this.profiler = new PyroscopeProfiler({ appName: this.config.serviceName });
     this.tempo = null; // see init()
-    this.systemPrompt = null; // see init()
 
     this.ollama = new OllamaHelper({
-      logLevel: process.env.BRIDGE_LOG_LEVEL,
+      logLevel: process.env.LLM_BRIDGE_LOG_LEVEL,
     });
 
     this.mcp = new GrafanaMcp();
@@ -53,7 +46,6 @@ export class BridgeService {
       this.tempo = new TempoTracer(this.config.serviceName);
       await this.tempo.init();
 
-      this.systemPrompt = this.loadSystemPrompt();
       this.logger.info(
         `[bridge] ${this.config.serviceName} service initialized`
       );
@@ -71,21 +63,19 @@ export class BridgeService {
   }
 
   /***
-   * system prompt loader
+   * Authorization middleware
    */
-  loadSystemPrompt() {
-    try {
-      const fileName = `${this.config.systemPromptPath}/system-prompt.mdc`;
-      this.logger.debug("[bridge] loading MCP system prompt", {
-        file: fileName,
-      });
-      return fs.readFileSync(fileName, "utf-8");
-    } catch (err) {
-      this.logger.error("[bridge] failed to load MCP system prompt", {
-        message: err.message,
-      });
-      return "";
+  authMiddleware(req, res, next) {
+    if (process.env.LLM_BRIDGE_API_KEY) {
+      const authKey = req.headers.authorization?.replace("Bearer ", "");
+      const apiKey = req?.body?.prompt?.apiKey;
+      if (!authKey || authKey !== process.env.LLM_BRIDGE_API_KEY) {
+        if (!apiKey || apiKey !== process.env.LLM_BRIDGE_API_KEY) {
+          return res.status(401).json({ error: "Unauthorized" });
+        }
+      }
     }
+    next();
   }
 
   /**
@@ -102,13 +92,7 @@ export class BridgeService {
         // force to use bridge default model
         helper.answer.model = helper.answer.defaultModel;
 
-        // check if test mode
-        if (this.config.mode === "TEST") {
-          this.logger.warn("[bridge] test mode active");
-          helper.answer.content = "Lorem ipsum dolor sit amet";
-        } else {
-          await this.checkMCP(helper);
-        }
+        await this.checkMCP(helper);
 
         const ollamaTimerEnd = this.metrics.ollamaLatency.startTimer();
         this.metrics.ollamaRequests.inc();
@@ -155,7 +139,12 @@ export class BridgeService {
               helper.prompt.messages.length - 1
             ].content.split("\n");
           const lastLine = lines[lines.length - 1];
-          if (lastLine.startsWith("#mcp:grafana")) {
+
+          if (lastLine.startsWith("#llm:test")) {
+            this.logger.warn("[bridge] test mode activated");
+            helper.answer.content = "Lorem ipsum dolor sit amet";
+            return;
+          } else if (lastLine.startsWith("#mcp:grafana")) {
             this.logger.debug("[bridge] MCP call to grafana requested", {
               message: lastLine,
               tools: this.mcp.tools,
@@ -189,19 +178,33 @@ export class BridgeService {
               const mcpTimerEnd = this.metrics.mcpLatency.startTimer();
               this.metrics.mcpRequests.inc();
               try {
-                const results = await this.mcp.executeTools(
-                  helper.answer.tool_calls
-                );
-                /*
                 helper.prompt.messages.push({
                   role: "assistant",
                   content: "",
                   tool_calls: helper.answer.tool_calls,
                 });
-                */
+                const results = await this.mcp.executeTools(
+                  helper.answer.tool_calls
+                );
                 for (const result of results) {
-                  helper.prompt.messages.push(result);
+                  const message = {
+                    role: "tool",
+                    name: result.name,
+                    content: JSON.stringify(
+                      result.error
+                        ? { error: result.error }
+                        : result.result
+                        ? { result: result.result }
+                        : { result }
+                    ),
+                  };
+                  helper.prompt.messages.push(message);
                 }
+                helper.prompt.messages.push({
+                  role: "system",
+                  content:
+                    "Respond to the user's latest interaction based on the result from the previous tool.",
+                });
                 helper.answer.content = "";
                 helper.prompt.tools = null;
 

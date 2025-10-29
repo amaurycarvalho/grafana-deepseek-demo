@@ -70,11 +70,10 @@ export class McpHelper {
     const result = await response.json();
     if (!response.ok || response.status === 401) {
       return {
-        error: `MCP Server connection error: ${response.status} - ${response.statusText}`,
+        error: {
+          message: `MCP Server connection error: ${response.status} - ${response.statusText}`,
+        },
       };
-    }
-    if (result.error) {
-      return { error: result.error.message };
     }
     return result;
   }
@@ -107,12 +106,8 @@ export class McpHelper {
     let results = [];
     for (const toolCall of tool_calls) {
       const result = await this.executeTool(toolCall);
-      results.push({
-        role: "tool",
-        name: toolCall.function.name,
-        content: result.error ? "error" : "result",
-        result,
-      });
+      result.name = toolCall.function.name;
+      results.push(result);
     }
     return results;
   }

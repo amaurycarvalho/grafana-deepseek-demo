@@ -82,7 +82,7 @@ export class GrafanaMcp extends McpHelper {
    * @returns list (JSON)
    */
   async getGrafanaVersion() {
-    return { version: "latest" };
+    return { result: { version: "latest" } };
   }
 
   /**

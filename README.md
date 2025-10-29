@@ -74,6 +74,10 @@ http://localhost:3000 (admin/admin)
 3. Click on the Panel Title → Auto-generate option.  
    Grafana will use the connected LLM to generate a title and description automatically.
 
+Try using `Hello` as the panel title to test the bridge integration.
+
+Additionally, try the `Explain Flame Graph` option in the `Drilldown > Profiles > Flame graph`.
+
 ---
 
 ### 👉 VSCode partial MCP integration
@@ -95,6 +99,7 @@ models:
     provider: openai
     model: deepseek-r1:1.5b
     apiBase: http://localhost:3001/v1
+    apiKey:
     roles:
       - chat
       - edit
@@ -110,16 +115,17 @@ models:
 
 Inside VSCode, try prompts like:
 
-- "Hello!"
-- "What do you know about Node.js?"
+- `#llm:test`
+- `Hello!`
+- `What do you know about Node.js?`
 
-And, still experimentally:
+And, still experimentally (needs `MCP_API_KEY` to work):
 
-- “#mcp:grafana Show grafana version"
-- “#mcp:grafana Show all dashboards names.”
-- “#mcp:grafana Show all metrics names.”
-- “#mcp:grafana Show the CPU metrics.”
-- “#mcp:grafana Show tools list”
+- `#mcp:grafana Show grafana version`
+- `#mcp:grafana Show all dashboards names.`
+- `#mcp:grafana Show all metrics names.`
+- `#mcp:grafana Show the CPU metrics.`
+- `#mcp:grafana Show tools list`
 
 
 ## 🧑‍💻 Developer Guide
@@ -164,13 +170,23 @@ curl -X GET http://localhost:3001/health
 #### Simple chat test
 
 ```
+curl -X POST http://localhost:3001/v1/chat/completions -H "Content-Type: application/json" -d '{"messages": [{"role":"user","content":"#llm:test"}]}'
+
 curl -X POST http://localhost:3001/v1/chat/completions -H "Content-Type: application/json" -d '{"messages": [{"role":"user","content":"Hello"}]}'
 ```
 
-#### Example MCP query
+#### Example MCP query (needs MCP_API_KEY to work)
 
 ```
+curl -X POST http://localhost:3001/v1/chat/completions -H "Content-Type: application/json" -d '{"messages":[{"role":"user","content":"#mcp:grafana Show grafana version."}]}'
+
 curl -X POST http://localhost:3001/v1/chat/completions -H "Content-Type: application/json" -d '{"messages":[{"role":"user","content":"#mcp:grafana Show all dashboards names."}]}'
+```
+
+#### Example when LLM_BRIDGE_API_KEY is set
+
+```
+curl -X POST http://localhost:3001/v1/chat/completions -H "Content-Type: application/json" -H "Authorization: Bearer e55a6d3fd03ee28b2e24d934775735be37ca1015c242b4678af65494636943b3" -d '{"messages": [{ "role": "user", "content": "Hello" }]}'
 ```
 
 ---
@@ -206,16 +222,20 @@ sudo docker exec -it grafana sh
 #### Bridge configurations
 
 - *Changing the LLM model*: edit `.env` file and change the `OLLAMA_DEFAULT_MODEL` environment variable;
-- *LLM or TEST mode*: edit `.env` file and change the `BRIDGE_MODE` environment variable.
+- *Security API key*: edit `.env` file and change the `LLM_BRIDGE_API_KEY` environment variable. Enter the same value in the Grafana LLM plugin and into VSCode `.Continue` plugin config.
 
 #### Grafana configurations
 
 - *Default user/password*: edit `./grafana/grafana.ini` file and search for `security' section;
 - *Connections url (prometheus, loki, pyroscope and tempo)*: edit `./grafana/provisioning/datasources/datasources.yml` and `./.env` files.
 
-#### Extending LLM MCP capabilities:
+#### Grafana MCP configurations
 
-Edit `./bridge/system-prompt.mdc` file (plain text) adding new MCP server methods.
+- *MCP token*: go to `Administration > Users and access > Service accounts`, add a new service as `viewer` and create a new token. Copy this token to `MCP_API_KEY` environment variable in the `.env` file. Restart the container.
+
+#### Extending MCP capabilities:
+
+Edit the `./bridge/GrafanaMcp.js` file by adding new MCP server methods (follow the examples there).
 
 ---
 
@@ -246,8 +266,10 @@ Edit `./bridge/system-prompt.mdc` file (plain text) adding new MCP server method
 - [Loki and Node.js](https://grafana.com/docs/loki/latest/send-data/).
 
 ### 🔗 [Pyroscope OSS](https://grafana.com/oss/pyroscope/)
-- [Pyroscope and Node.js](https://grafana.com/docs/pyroscope/latest/configure-client/language-sdks/nodejs/).
+- [Pyroscope and Node.js](https://grafana.com/docs/pyroscope/latest/configure-client/language-sdks/nodejs/);
+- [Java span profiles](https://grafana.com/docs/pyroscope/latest/configure-client/trace-span-profiles/java-span-profiles/).
 
 ### 🔗 [Tempo OSS](https://grafana.com/oss/tempo/)
+- [Tempo configuration](https://grafana.com/docs/grafana/next/datasources/tempo/configure-tempo-data-source/);
 - [Tempo and Node.js](https://grafana.com/docs/opentelemetry/instrument/node/).
 
