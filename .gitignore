@@ -141,3 +141,7 @@ vite.config.ts.timestamp-*
 # nginx certs
 certs/
 *.pem
+
+# .continue extension config
+continue-local-config.yaml
+

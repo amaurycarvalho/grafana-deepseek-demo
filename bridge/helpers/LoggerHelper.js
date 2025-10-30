@@ -68,20 +68,38 @@ export class LoggerHelper {
     });
   }
 
+  _getCallerMethodLabels() {
+    const regex =
+      /at\s+(?:(?<method>[\w.$<> ]+)\s+\((?<location1>[^)]+)\)|(?<location2>file:[^ )]+))/;
+    const lines = new Error().stack?.split("\n");
+    const match = lines[3]?.match(regex);
+    return match
+      ? {
+          method: match.groups.method || "<anonymous>",
+          location:
+            match.groups.location2 || match.groups.location1 || "<unknown>",
+        }
+      : { method: "<unknown>", location: lines[3] || "<unknown>" };
+  }
+
   info(message, meta = {}) {
-    this.logger.info(message, meta);
+    const labels = this._getCallerMethodLabels();
+    this.logger.info(message, { labels, ...meta });
   }
 
   warn(message, meta = {}) {
-    this.logger.warn(message, meta);
+    const labels = this._getCallerMethodLabels();
+    this.logger.warn(message, { labels, ...meta });
   }
 
   error(message, meta = {}) {
-    this.logger.error(message, meta);
+    const labels = this._getCallerMethodLabels();
+    this.logger.error(message, { labels, ...meta });
   }
 
   debug(message, meta = {}) {
-    this.logger.debug(message, meta);
+    const labels = this._getCallerMethodLabels();
+    this.logger.debug(message, { labels, ...meta });
   }
 
   getInstance() {

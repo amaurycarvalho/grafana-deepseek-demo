@@ -17,7 +17,7 @@ export class TempoTracer {
       throw new Error("[tempo] serviceName is missing.");
     }
 
-    this.serviceName = serviceName;
+    this.serviceName = otel.normalizeIdentifier(serviceName);
     this.env = options.env || process.env.NODE_ENV || "dev";
     this.region =
       process.env.AWS_REGION ||

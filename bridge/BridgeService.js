@@ -92,7 +92,7 @@ export class BridgeService {
         // force to use bridge default model
         helper.answer.model = helper.answer.defaultModel;
 
-        await this.checkMCP(helper);
+        await this._checkMCP(helper);
 
         const ollamaTimerEnd = this.metrics.ollamaLatency.startTimer();
         this.metrics.ollamaRequests.inc();
@@ -128,7 +128,7 @@ export class BridgeService {
    * MCP processor helper
    * check if it's an MCP request
    */
-  async checkMCP(helper) {
+  async _checkMCP(helper) {
     return await this.tempo.withSpan(
       "checkMCP",
       { prompt: helper.prompt },

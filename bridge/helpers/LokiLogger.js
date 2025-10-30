@@ -1,4 +1,5 @@
 import { LoggerHelper } from "./LoggerHelper.js";
+import otel from "./OtelHelper.js";
 
 /**
  * Loki Logger class
@@ -15,6 +16,6 @@ export class LokiLogger extends LoggerHelper {
     options.lokiUrl =
       options.lokiUrl || process.env.LOKI_URL || "http://loki:3100";
 
-    super(serviceName, options);
+    super(otel.normalizeIdentifier(serviceName), options);
   }
 }

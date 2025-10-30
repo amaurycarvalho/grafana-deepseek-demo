@@ -109,10 +109,10 @@ export class OllamaHelper {
         this.logger.debug(
           "[ollama] response as stream requested by the chat client"
         );
-        this.setupStream(helper);
+        this._setupStream(helper);
       }
 
-      const response = await this.processPrompt(helper);
+      const response = await this._processPrompt(helper);
 
       if (!helper.answer.stream) {
         helper.res.json(response);
@@ -132,18 +132,18 @@ export class OllamaHelper {
    * Prompt processor helper
    * @param helper Helper object
    */
-  async processPrompt(helper) {
+  async _processPrompt(helper) {
     if (helper.answer.stream) {
       if (!helper.answer.content || helper.answer.content.trim() === "") {
         this.logger.debug("[ollama] asking LLM for a streaming response", {
           model: helper.answer.model,
           prompt: helper.prompt,
         });
-        helper.answer.content = await this.streamLLMResponse(helper);
+        helper.answer.content = await this._streamLLMResponse(helper);
       } else {
-        this.writeStreamChunk(helper, helper.answer.content);
+        this._writeStreamChunk(helper, helper.answer.content);
       }
-      this.endStream(helper);
+      this._endStream(helper);
       this.logger.debug("[ollama] LLM answer", {
         message: helper.answer.content,
       });
@@ -159,7 +159,7 @@ export class OllamaHelper {
       this.logger.debug("[ollama] LLM answer", {
         message: helper.answer.content,
       });
-      return this.createResponse(helper);
+      return this._createResponse(helper);
     }
   }
 
@@ -167,7 +167,7 @@ export class OllamaHelper {
    * Non streaming chat completion response helper
    * @param helper Helper object
    */
-  createResponse(helper) {
+  _createResponse(helper) {
     return {
       id: helper.answer.id,
       object: "chat.completion",
@@ -187,7 +187,7 @@ export class OllamaHelper {
   /**
    * Chat completion streaming header setup (SSE)
    */
-  setupStream(helper) {
+  _setupStream(helper) {
     helper.res.setHeader("Content-Type", "text/event-stream");
     helper.res.setHeader("Cache-Control", "no-cache");
     helper.res.setHeader("Connection", "keep-alive");
@@ -205,7 +205,7 @@ export class OllamaHelper {
   /**
    * Chat completion streaming chunk writer (SSE)
    */
-  writeStreamChunk(helper, content) {
+  _writeStreamChunk(helper, content) {
     helper.res.write(
       `data: ${JSON.stringify({
         id: helper.answer.id,
@@ -220,7 +220,7 @@ export class OllamaHelper {
   /**
    * Chat completion streaming response
    */
-  async streamLLMResponse(helper) {
+  async _streamLLMResponse(helper) {
     helper.answer.content = "";
     helper.answer.tool_calls = [];
 
@@ -232,7 +232,7 @@ export class OllamaHelper {
         stream: true,
       })) {
         if (chunk.message?.content) {
-          this.writeStreamChunk(helper, chunk.message?.content);
+          this._writeStreamChunk(helper, chunk.message?.content);
           helper.answer.content += chunk.message?.content;
         }
         if (chunk.message?.tool_calls?.length) {
@@ -247,7 +247,7 @@ export class OllamaHelper {
         answer: helper.answer,
         prompt: helper.prompt,
       });
-      this.writeStreamChunk(helper, helper.answer.content);
+      this._writeStreamChunk(helper, helper.answer.content);
     }
     return helper.answer.content;
   }
@@ -255,7 +255,7 @@ export class OllamaHelper {
   /**
    * Finalize chat completion streaming (SSE)
    */
-  endStream(helper) {
+  _endStream(helper) {
     helper.res.write(
       `data: ${JSON.stringify({
         id: helper.answer.id,

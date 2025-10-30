@@ -25,5 +25,5 @@ app.get(
 
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
-  bridge.logger.info(`[bridge] listening on ${PORT})`);
+  bridge.logger.info(`[bridge] listening on ${PORT}`);
 });

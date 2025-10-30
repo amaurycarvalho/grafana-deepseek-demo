@@ -1,0 +1,27 @@
+name: Local Assistant
+version: 1.0.0
+schema: v1
+models:
+  - name: Deepseek Proxy Chat
+    provider: openai
+    model: deepseek-r1:1.5b
+    apiBase: http://localhost:3001/v1
+    apiKey:
+    roles:
+      - chat
+      - edit
+      - apply
+
+  - name: Local Qwen Ultra Light Chat
+    provider: openai
+    model: qwen3:0.6b
+    apiBase: http://localhost:3001/v1
+    apiKey:
+    roles:
+      - chat
+      - edit
+      - apply
+
+defaultModel:
+  chat: Local Qwen Ultra Light Chat
+

@@ -88,7 +88,7 @@ Additionally, try the `Explain Flame Graph` option in the `Drilldown > Profiles 
 2. Click on the *Continue* icon in the left-hand toolbar;
 3. In the Continue *Chat* tab, click the *Open Settings* icon (⚙️);
 4. Select the *Configs* paper icon in the left-hand new toolbar and click the *Local Config* icon (⚙️);
-5. Add the following to your `.continue/config.yaml` file and save it.
+5. Add the following to your `.continue/agents/config.yaml` file and save it.
 
 ```
 name: Local Assistant
@@ -105,6 +105,10 @@ models:
       - edit
       - apply
 ```
+
+> 📌 *Note*:  
+> 1. Change `apiKey` to the same `LLM_BRIDGE_API_KEY` value key you put in the `.env` file;  
+> 2. See `.continue/agents/config.yaml.example` in the project repository for a more complete configuration.
 
 #### Testing
 
@@ -186,7 +190,7 @@ curl -X POST http://localhost:3001/v1/chat/completions -H "Content-Type: applica
 #### Example when LLM_BRIDGE_API_KEY is set
 
 ```
-curl -X POST http://localhost:3001/v1/chat/completions -H "Content-Type: application/json" -H "Authorization: Bearer e55a6d3fd03ee28b2e24d934775735be37ca1015c242b4678af65494636943b3" -d '{"messages": [{ "role": "user", "content": "Hello" }]}'
+curl -X POST http://localhost:3001/v1/chat/completions -H "Content-Type: application/json" -H "Authorization: Bearer LLM_BRIDGE_API_KEY_value" -d '{"messages": [{ "role": "user", "content": "Hello" }]}'
 ```
 
 ---
@@ -257,7 +261,17 @@ Edit the `./bridge/GrafanaMcp.js` file by adding new MCP server methods (follow 
 - [Ollama MCP streaming tool](https://ollama.com/blog/streaming-tool);
 - [MCP reference guide](https://modelcontextprotocol.io/specification/2025-06-18/basic);
 - [MCP JSON-RPC Reference Guide](https://portkey.ai/blog/mcp-message-types-complete-json-rpc-reference-guide/)
-- [OpenAI API guide](https://platform.openai.com/docs/guides/text) and [chat completion object reference](https://platform.openai.com/docs/api-reference/chat/get).
+- [OpenAI API guide](https://platform.openai.com/docs/guides/text) and [chat completion object reference](https://platform.openai.com/docs/api-reference/chat/get);
+- [Node.js FastMCP](https://npmjs.com/package/fastmcp).
+
+### 🔗 VSCode .Continue extension
+- [.Continue - open-source AI code agent extension](https://continue.dev/) extension;
+- [.Continue config](https://docs.continue.dev/reference);
+- [.Continue MCP config](https://docs.continue.dev/reference/continue-mcp);
+- [.Continue MCP customize](https://docs.continue.dev/customize/deep-dives/mcp);
+- [.Continue models](https://docs.continue.dev/customization/models);
+- [.Continue rules](https://docs.continue.dev/customize/deep-dives/rules);
+- [.Continue prompts](https://docs.continue.dev/customize/deep-dives/prompts).
 
 ### 🔗 [Prometheus](https://prometheus.io)
 - [Prometheus and Node.js](https://prometheus.io/docs/instrumenting/clientlibs/).

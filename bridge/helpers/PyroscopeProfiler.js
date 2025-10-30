@@ -8,7 +8,7 @@ export class PyroscopeProfiler {
     serverAddress = process.env.PYROSCOPE_URL || "http://pyroscope:4040",
     authToken = process.env.PYROSCOPE_AUTH_TOKEN || "",
   } = {}) {
-    this.appName = appName;
+    this.appName = otel.normalizeIdentifier(appName);
     this.serverAddress = serverAddress;
     this.authToken = authToken;
     this.env = process.env.NODE_ENV || "dev";
@@ -18,7 +18,7 @@ export class PyroscopeProfiler {
       process.env.NODE_REGION ||
       "local";
     this.initialized = false;
-    this.logger = new LokiLogger(`pyroscope-${appName}`);
+    this.logger = new LokiLogger(`pyroscope-${this.appName}`);
 
     this.init();
   }
