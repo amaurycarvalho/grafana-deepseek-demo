@@ -1,5 +1,6 @@
 import winston from "winston";
 import LokiTransport from "winston-loki";
+import { context, trace } from "@opentelemetry/api";
 
 /**
  * Logger Helper class
@@ -68,38 +69,68 @@ export class LoggerHelper {
     });
   }
 
-  _getCallerMethodLabels() {
+  _getCallerInfo() {
     const regex =
       /at\s+(?:(?<method>[\w.$<> ]+)\s+\((?<location1>[^)]+)\)|(?<location2>file:[^ )]+))/;
     const lines = new Error().stack?.split("\n");
     const match = lines[3]?.match(regex);
     return match
       ? {
-          method: match.groups.method || "<anonymous>",
-          location:
-            match.groups.location2 || match.groups.location1 || "<unknown>",
+          method: match.groups.method || "",
+          location: match.groups.location2 || match.groups.location1 || "",
         }
-      : { method: "<unknown>", location: lines[3] || "<unknown>" };
+      : {};
+  }
+
+  _getTraceInfo() {
+    const span = trace.getSpan(context.active());
+    const spanContext = span?.spanContext();
+
+    if (spanContext) {
+      return { trace_id: spanContext.traceId, span_id: spanContext.spanId };
+    }
+
+    return {};
   }
 
   info(message, meta = {}) {
-    const labels = this._getCallerMethodLabels();
-    this.logger.info(message, { labels, ...meta });
+    const callerInfo = this._getCallerInfo();
+    const traceInfo = this._getTraceInfo();
+    this.logger.info(message, {
+      labels: { ...traceInfo },
+      ...meta,
+      ...callerInfo,
+    });
   }
 
   warn(message, meta = {}) {
-    const labels = this._getCallerMethodLabels();
-    this.logger.warn(message, { labels, ...meta });
+    const callerInfo = this._getCallerInfo();
+    const traceInfo = this._getTraceInfo();
+    this.logger.warn(message, {
+      labels: { ...traceInfo },
+      ...meta,
+      ...callerInfo,
+    });
   }
 
   error(message, meta = {}) {
-    const labels = this._getCallerMethodLabels();
-    this.logger.error(message, { labels, ...meta });
+    const callerInfo = this._getCallerInfo();
+    const traceInfo = this._getTraceInfo();
+    this.logger.error(message, {
+      labels: { ...traceInfo },
+      ...meta,
+      ...callerInfo,
+    });
   }
 
   debug(message, meta = {}) {
-    const labels = this._getCallerMethodLabels();
-    this.logger.debug(message, { labels, ...meta });
+    const callerInfo = this._getCallerInfo();
+    const traceInfo = this._getTraceInfo();
+    this.logger.debug(message, {
+      labels: { ...traceInfo },
+      ...meta,
+      ...callerInfo,
+    });
   }
 
   getInstance() {

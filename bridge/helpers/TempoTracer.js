@@ -91,6 +91,7 @@ export class TempoTracer {
           },
           "@opentelemetry/instrumentation-fs": { enabled: false },
         }),
+        new otel.WinstonInstrumentation(),
       ],
     });
 
@@ -113,6 +114,20 @@ export class TempoTracer {
       await this.provider.shutdown();
       console.log(`[tempo] tracing terminated for ${this.serviceName}`);
     }
+  }
+
+  /***
+   * Tempo's express middleware
+   * @param {string} name span name
+   * @example
+   *   app.get("/endpoint", tracer.middleware( "/endpoint" ), (req, res, next) => { ... });
+   */
+  middleware(name) {
+    return (req, res, next) => {
+      this.withSpan(name, {}, async () => {
+        next();
+      });
+    };
   }
 
   /**

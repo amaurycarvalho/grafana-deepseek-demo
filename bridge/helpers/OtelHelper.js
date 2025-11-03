@@ -3,6 +3,7 @@ import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import { SimpleSpanProcessor } from "@opentelemetry/sdk-trace-base";
 import { registerInstrumentations } from "@opentelemetry/instrumentation";
 import { getNodeAutoInstrumentations } from "@opentelemetry/auto-instrumentations-node";
+import { WinstonInstrumentation } from "@opentelemetry/instrumentation-winston";
 import { resourceFromAttributes } from "@opentelemetry/resources";
 import { trace, diag, DiagLogLevel } from "@opentelemetry/api";
 import { ATTR_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
@@ -31,6 +32,7 @@ export default {
   NodeTracerProvider,
   SimpleSpanProcessor,
   registerInstrumentations,
+  WinstonInstrumentation,
   getNodeAutoInstrumentations,
   resourceFromAttributes,
   trace,

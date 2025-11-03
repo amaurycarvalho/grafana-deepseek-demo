@@ -257,11 +257,15 @@ Edit the `./bridge/GrafanaMcp.js` file by adding new MCP server methods (follow 
 - [Grafana LLM examples](https://github.com/grafana/grafana-llmexamples-app);
 - [Campfire MCP Demo](https://github.com/grafana/campfire-mcp-demo) for more details about Grafana MCP integration.
 
+### 🔗 LLM and OpenAI
+- [OpenAI API guide](https://platform.openai.com/docs/guides/text) and [chat completion object reference](https://platform.openai.com/docs/api-reference/chat/get);
+- [OWASP LLM top 10 list](https://owasp.org/www-project-top-10-for-large-language-model-applications/);
+- [OWASP LLM top 10 detailed](https://genai.owasp.org/llm-top-10/).
+
 ### 🔗 MCP and OpenAI
 - [Ollama MCP streaming tool](https://ollama.com/blog/streaming-tool);
 - [MCP reference guide](https://modelcontextprotocol.io/specification/2025-06-18/basic);
-- [MCP JSON-RPC Reference Guide](https://portkey.ai/blog/mcp-message-types-complete-json-rpc-reference-guide/)
-- [OpenAI API guide](https://platform.openai.com/docs/guides/text) and [chat completion object reference](https://platform.openai.com/docs/api-reference/chat/get);
+- [MCP JSON-RPC Reference Guide](https://portkey.ai/blog/mcp-message-types-complete-json-rpc-reference-guide/);
 - [Node.js FastMCP](https://npmjs.com/package/fastmcp).
 
 ### 🔗 VSCode .Continue extension

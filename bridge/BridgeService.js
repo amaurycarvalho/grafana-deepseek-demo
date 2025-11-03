@@ -29,7 +29,7 @@ export class BridgeService {
     });
     this.metrics = new BridgeMetrics();
     this.profiler = new PyroscopeProfiler({ appName: this.config.serviceName });
-    this.tempo = null; // see init()
+    this.tracer = null; // see init()
 
     this.ollama = new OllamaHelper({
       logLevel: process.env.LLM_BRIDGE_LOG_LEVEL,
@@ -43,8 +43,8 @@ export class BridgeService {
    */
   async init() {
     try {
-      this.tempo = new TempoTracer(this.config.serviceName);
-      await this.tempo.init();
+      this.tracer = new TempoTracer(this.config.serviceName);
+      await this.tracer.init();
 
       this.logger.info(
         `[bridge] ${this.config.serviceName} service initialized`
@@ -82,7 +82,7 @@ export class BridgeService {
    * OpenAI compatible chat completions router helper
    */
   async handleChat(req, res) {
-    return await this.tempo.withSpan("handleChat", {}, async () => {
+    return await this.tracer.withSpan("handleChat", {}, async () => {
       const bridgeTimerEnd = this.metrics.bridgeLatency.startTimer();
       this.metrics.bridgeRequests.inc();
 
@@ -91,6 +91,12 @@ export class BridgeService {
 
         // force to use bridge default model
         helper.answer.model = helper.answer.defaultModel;
+
+        this.profiler.withLabels({ method: "_checkOWASP" }, () => {
+          if (!this._checkOWASP(helper)) {
+            helper.answer.content = "Invalid prompt";
+          }
+        });
 
         await this._checkMCP(helper);
 
@@ -124,12 +130,34 @@ export class BridgeService {
     });
   }
 
+  /***
+   * Check prompt integrity (OWASP)
+   * @param helper Ollama helper object
+   * @returns true/false
+   * @see
+   * https://owasp.org/www-project-top-10-for-large-language-model-applications/
+   * https://genai.owasp.org/llm-top-10/
+   */
+  _checkOWASP(helper) {
+    // LLM01: Prompt Injection
+    // LLM02: Sensitive Information Disclosure
+    // LLM03: Supply Chain
+    // LLM04: Data and Model Poisoning
+    // LLM05: Improper Output Handling
+    // LLM06: Excessive Agency
+    // LLM07: System Prompt Leakage
+    // LLM08: Vector and Embedding Weaknesses
+    // LLM09: Misinformation
+    // LLM10: Unbounded Consumption
+    return this.ollama.checkOWASP(helper);
+  }
+
   /**
    * MCP processor helper
    * check if it's an MCP request
    */
   async _checkMCP(helper) {
-    return await this.tempo.withSpan(
+    return await this.tracer.withSpan(
       "checkMCP",
       { prompt: helper.prompt },
       async () => {

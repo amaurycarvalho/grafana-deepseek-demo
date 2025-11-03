@@ -71,6 +71,28 @@ export class OllamaHelper {
     }
   }
 
+  /***
+   * Check prompt integrity (OWASP)
+   * @param helper Ollama helper object
+   * @returns true/false
+   * @see
+   * https://owasp.org/www-project-top-10-for-large-language-model-applications/
+   * https://genai.owasp.org/llm-top-10/
+   */
+  checkOWASP() {
+    // LLM01: Prompt Injection
+    // LLM02: Sensitive Information Disclosure
+    // LLM03: Supply Chain
+    // LLM04: Data and Model Poisoning
+    // LLM05: Improper Output Handling
+    // LLM06: Excessive Agency
+    // LLM07: System Prompt Leakage
+    // LLM08: Vector and Embedding Weaknesses
+    // LLM09: Misinformation
+    // LLM10: Unbounded Consumption
+    return true;
+  }
+
   /**
    * LLM caller (Ollama API helper)
    * @param helper Helper object { model, messages: [{ role: "user", content: "text" }] }

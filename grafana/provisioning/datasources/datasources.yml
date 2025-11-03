@@ -29,6 +29,8 @@ datasources:
         tags:
           - key: "service.name"
             value: "service_name"
+        filterByTraceID: true
+        filterBySpanID: true
         #customQuery: true
         #query: 'service_name="$${__resource.service.name}"'
         #query: 'method="$${__span.tags.method}"'
